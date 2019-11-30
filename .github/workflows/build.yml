@@ -1,4 +1,4 @@
-name: FreeDSx SASL Build
+name: Build
 on: [push, pull_request]
 jobs:
   run:
