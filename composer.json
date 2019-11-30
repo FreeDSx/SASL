@@ -34,6 +34,9 @@
     "test": [
       "@php vendor/bin/phpunit"
     ],
+    "test-coverage": [
+      "@php vendor/bin/phpunit --coverage-clover=coverage.xml"
+    ],
     "analyse": [
       "@php vendor/bin/phpstan analyse"
     ]
