@@ -4,7 +4,8 @@
   "homepage": "https://github.com/FreeDSx/SASL",
   "keywords": [
     "SASL",
-    "DIGEST-MD5"
+    "DIGEST-MD5",
+    "CRAM-MD5"
   ],
   "license": "MIT",
   "authors": [

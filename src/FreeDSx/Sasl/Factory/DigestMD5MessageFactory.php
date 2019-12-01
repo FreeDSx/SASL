@@ -22,6 +22,8 @@ use FreeDSx\Sasl\Message;
  */
 class DigestMD5MessageFactory implements MessageFactoryInterface
 {
+    use NonceTrait;
+
     public const MESSAGE_CLIENT_RESPONSE = 1;
 
     public const MESSAGE_SERVER_CHALLENGE = 2;
@@ -255,24 +257,5 @@ class DigestMD5MessageFactory implements MessageFactoryInterface
         $selected = array_pop($realms);
 
         return $selected;
-    }
-
-    /**
-     * The cnonce-value is an opaque quoted string value provided by the client and used by both client and server to
-     * avoid chosen plaintext attacks, and to provide mutual authentication. The security of the implementation depends
-     * on a good choice. It is RECOMMENDED that it contain at least 64 bits of entropy.
-     *
-     * @throws SaslException
-     */
-    protected function generateNonce(int $byteLength): string
-    {
-        try {
-            return base64_encode(random_bytes($byteLength));
-        } catch (Exception $e) {
-            throw new SaslException(sprintf(
-                'Unable to generate the nonce: %s',
-                $e->getMessage()
-            ), $e->getCode(), $e);
-        }
     }
 }

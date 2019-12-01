@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -10,6 +11,7 @@
 
 namespace unit\FreeDSx\Sasl;
 
+use FreeDSx\Sasl\Mechanism\CramMD5Mechanism;
 use FreeDSx\Sasl\Mechanism\DigestMD5Mechanism;
 use FreeDSx\Sasl\Mechanism\MechanismInterface;
 use FreeDSx\Sasl\Sasl;
@@ -41,7 +43,8 @@ class SaslTest extends TestCase
         $mechs = $this->sasl->mechanisms();
 
         $this->assertArrayHasKey('DIGEST-MD5', $mechs);
-        $this->assertCount(1, $mechs);
+        $this->assertArrayHasKey('CRAM-MD5', $mechs);
+        $this->assertCount(2, $mechs);
     }
 
     public function testRemove()
@@ -51,9 +54,14 @@ class SaslTest extends TestCase
         $this->assertFalse($this->sasl->supports('DIGEST-MD5'));
     }
 
-    public function testGet()
+    public function testGetDigestMD5()
     {
         $this->assertInstanceOf(DigestMD5Mechanism::class, $this->sasl->get('DIGEST-MD5'));
+    }
+
+    public function testGetCramMD5()
+    {
+        $this->assertInstanceOf(CramMD5Mechanism::class, $this->sasl->get('CRAM-MD5'));
     }
 
     public function testSupportedOption()
@@ -61,7 +69,7 @@ class SaslTest extends TestCase
         $sasl = new Sasl(['supported' => ['foo']]);
         $this->assertEmpty($sasl->mechanisms());
 
-        $sasl = new Sasl(['supported' => 'DIGEST-MD5']);
+        $sasl = new Sasl(['supported' => ['DIGEST-MD5']]);
         $this->assertCount(1, $sasl->mechanisms());
     }
 }
