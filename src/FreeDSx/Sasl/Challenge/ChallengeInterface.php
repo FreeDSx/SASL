@@ -22,11 +22,6 @@ use FreeDSx\Sasl\SaslContext;
 interface ChallengeInterface
 {
     /**
-     * Set any challenge specific options.
-     */
-    public function setOptions(array $options): void;
-
-    /**
      * Generate the next response to send in the challenge. It takes two optional parameters:
      *
      *  - The last message received. Null if no message has been received yet.

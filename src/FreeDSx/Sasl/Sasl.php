@@ -15,6 +15,7 @@ use FreeDSx\Sasl\Exception\SaslException;
 use FreeDSx\Sasl\Mechanism\CramMD5Mechanism;
 use FreeDSx\Sasl\Mechanism\DigestMD5Mechanism;
 use FreeDSx\Sasl\Mechanism\MechanismInterface;
+use FreeDSx\Sasl\Mechanism\PlainMechanism;
 
 /**
  * The main SASL class.
@@ -99,6 +100,7 @@ class Sasl
         $this->mechanisms = [
             DigestMD5Mechanism::NAME => new DigestMD5Mechanism(),
             CramMD5Mechanism::NAME => new CramMD5Mechanism(),
+            PlainMechanism::NAME => new PlainMechanism(),
         ];
 
         if (is_array($this->options['supported']) && !empty($this->options['supported'])) {

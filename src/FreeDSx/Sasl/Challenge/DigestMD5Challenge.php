@@ -28,9 +28,11 @@ class DigestMD5Challenge implements ChallengeInterface
     /**
      * @var array
      */
-    protected $options = [
+    protected const DEFAULTS = [
         'use_integrity' => false,
         'use_privacy' => false,
+        'service' => 'ldap',
+        'nonce_size' => null,
     ];
 
     /**
@@ -59,18 +61,6 @@ class DigestMD5Challenge implements ChallengeInterface
         $this->encoder = new DigestMD5Encoder();
         $this->context = new SaslContext();
         $this->context->setIsServerMode($isServerMode);
-        $this->options = array_merge($this->options, [
-            'service' => 'ldap',
-            'nonce_size' => null,
-        ]);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public function setOptions(array $options): void
-    {
-        $this->options = $options + $this->options;
     }
 
     /**
@@ -78,7 +68,7 @@ class DigestMD5Challenge implements ChallengeInterface
      */
     public function challenge(?string $received = null, array $options = []): SaslContext
     {
-        $options = $options + $this->options;
+        $options = $options + self::DEFAULTS;
 
         $received = $received === null ? null : $this->encoder->decode($received, $this->context);
         if ($this->context->isServerMode()) {
@@ -144,7 +134,6 @@ class DigestMD5Challenge implements ChallengeInterface
      */
     protected function createClientResponse(Message $message, array $options): string
     {
-        $options = $options + $this->options;
         $password = $options['password'] ?? '';
 
         if ($options['use_privacy']) {

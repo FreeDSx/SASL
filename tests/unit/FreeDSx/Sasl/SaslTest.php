@@ -44,7 +44,8 @@ class SaslTest extends TestCase
 
         $this->assertArrayHasKey('DIGEST-MD5', $mechs);
         $this->assertArrayHasKey('CRAM-MD5', $mechs);
-        $this->assertCount(2, $mechs);
+        $this->assertArrayHasKey('PLAIN', $mechs);
+        $this->assertCount(3, $mechs);
     }
 
     public function testRemove()

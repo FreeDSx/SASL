@@ -33,28 +33,15 @@ class CramMD5Challenge implements ChallengeInterface
     protected $context;
 
     /**
-     * @var array
-     */
-    protected $options = [];
-
-    /**
      * @var EncoderInterface
      */
     protected $encoder;
 
     public function __construct(bool $isServerMode = false)
     {
+        $this->encoder = new CramMD5Encoder();
         $this->context = new SaslContext();
         $this->context->setIsServerMode($isServerMode);
-        $this->encoder = new CramMD5Encoder();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public function setOptions(array $options): void
-    {
-        $this->options = $options + $this->options;
     }
 
     /**

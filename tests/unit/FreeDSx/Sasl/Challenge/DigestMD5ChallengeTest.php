@@ -71,14 +71,14 @@ class DigestMD5ChallengeTest extends TestCase
 
     public function testSecurityLayerIsInitializedProperlyInTheContext()
     {
-        $this->challenge->setOptions([
+        $options = [
             'use_privacy' => true,
             'cipher' => 'rc4',
             'username' => 'WillifoA',
             'password' => 'Password1',
-        ]);
-        $this->challenge->challenge($this->challengeData, ['cnonce' => 'tQvBPuDOMTE=', 'nonce' => 'Zzk0ux7KgOVPmN7dLofGm9KqNesbnCXRcIAQSmxuQEk=']);
-        $context = $this->challenge->challenge($this->rspAuthSuccess, ['cnonce' => 'tQvBPuDOMTE=', 'nonce' => 'Zzk0ux7KgOVPmN7dLofGm9KqNesbnCXRcIAQSmxuQEk=']);
+        ];
+        $this->challenge->challenge($this->challengeData, ['cnonce' => 'tQvBPuDOMTE=', 'nonce' => 'Zzk0ux7KgOVPmN7dLofGm9KqNesbnCXRcIAQSmxuQEk='] + $options);
+        $context = $this->challenge->challenge($this->rspAuthSuccess, ['cnonce' => 'tQvBPuDOMTE=', 'nonce' => 'Zzk0ux7KgOVPmN7dLofGm9KqNesbnCXRcIAQSmxuQEk='] + $options);
 
         $this->assertTrue($context->isAuthenticated(), 'Context should be authenticated, but was not.');
         $this->assertTrue($context->hasSecurityLayer(), 'Context should have a security layer, but it does not.');
@@ -104,12 +104,12 @@ class DigestMD5ChallengeTest extends TestCase
 
     public function testGenerateServerChallengeForClientInServerMode()
     {
-        $this->challenge = new DigestMD5Challenge(true);
-        $this->challenge->setOptions([
+        $options = [
             'use_integrity' => true,
             'use_privacy' => true,
-        ]);
-        $challenge = $this->encoder->decode($this->challenge->challenge()->getResponse(), new SaslContext());
+        ];
+        $this->challenge = new DigestMD5Challenge(true);
+        $challenge = $this->encoder->decode($this->challenge->challenge(null, $options)->getResponse(), new SaslContext());
 
         $this->assertEquals(['auth', 'auth-int', 'auth-conf'], $challenge->get('qop'));
         $this->assertNotEmpty($challenge->get('cipher'), 'The realm value is empty.');
@@ -118,17 +118,17 @@ class DigestMD5ChallengeTest extends TestCase
 
     public function testGenerateServerResponseToClientResponse()
     {
-        $this->challenge = new DigestMD5Challenge(true);
-        $this->challenge->setOptions([
+        $options = [
             'use_integrity' => true,
             'use_privacy' => true,
-        ]);
+        ];
+        $this->challenge = new DigestMD5Challenge(true);
         $this->challenge->challenge(null, [
             'nonce' => 'Zzk0ux7KgOVPmN7dLofGm9KqNesbnCXRcIAQSmxuQEk=',
             'realm' => 'huh-sys',
-        ]);
+        ] + $options);
         $response = $this->encoder->decode(
-            $this->challenge->challenge($this->responseData, ['password' => 'Password1'])->getResponse(),
+            $this->challenge->challenge($this->responseData, ['password' => 'Password1'] + $options)->getResponse(),
             (new SaslContext())->setIsServerMode(true)
         );
 

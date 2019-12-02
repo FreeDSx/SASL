@@ -58,10 +58,9 @@ class DigestMD5Mechanism implements MechanismInterface
     /**
      * {@inheritDoc}
      */
-    public function challenge(array $options = []): ChallengeInterface
+    public function challenge(): ChallengeInterface
     {
         $challenge = new DigestMD5Challenge();
-        $challenge->setOptions($options);
 
         return $challenge;
     }

@@ -34,12 +34,6 @@ class CramMD5ChallengeTest extends TestCase
         $this->encoder = new CramMD5Encoder();
     }
 
-    public function testSetOptions()
-    {
-        $this->challenge->setOptions(['foo' => 'bar']);
-        $this->assertTrue(true);
-    }
-
     public function testChallengeWithFromClientWithServerChallenge()
     {
         $context = $this->challenge->challenge('<foobar>', ['username' => 'foo', 'password' => 'bar']);
