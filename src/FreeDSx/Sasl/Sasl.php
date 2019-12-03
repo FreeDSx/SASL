@@ -12,6 +12,7 @@
 namespace FreeDSx\Sasl;
 
 use FreeDSx\Sasl\Exception\SaslException;
+use FreeDSx\Sasl\Mechanism\AnonymousMechanism;
 use FreeDSx\Sasl\Mechanism\CramMD5Mechanism;
 use FreeDSx\Sasl\Mechanism\DigestMD5Mechanism;
 use FreeDSx\Sasl\Mechanism\MechanismInterface;
@@ -101,6 +102,7 @@ class Sasl
             DigestMD5Mechanism::NAME => new DigestMD5Mechanism(),
             CramMD5Mechanism::NAME => new CramMD5Mechanism(),
             PlainMechanism::NAME => new PlainMechanism(),
+            AnonymousMechanism::NAME => new AnonymousMechanism(),
         ];
 
         if (is_array($this->options['supported']) && !empty($this->options['supported'])) {
