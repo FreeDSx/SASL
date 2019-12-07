@@ -60,7 +60,7 @@ class CramMD5Mechanism implements MechanismInterface
     /**
      * {@inheritDoc}
      */
-    public function security(): SecurityLayerInterface
+    public function securityLayer(): SecurityLayerInterface
     {
         throw new SaslException('CRAM-MD5 does not support a security layer.');
     }

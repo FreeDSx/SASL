@@ -45,7 +45,7 @@ class DigestMD5MechanismTest extends TestCase
 
     public function testSecurity()
     {
-        $this->assertInstanceOf(SecurityLayerInterface::class, $this->mech->security());
+        $this->assertInstanceOf(SecurityLayerInterface::class, $this->mech->securityLayer());
     }
 
     public function testChallenge()

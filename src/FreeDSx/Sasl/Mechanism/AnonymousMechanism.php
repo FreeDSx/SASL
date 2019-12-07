@@ -60,7 +60,7 @@ class AnonymousMechanism implements MechanismInterface
     /**
      * {@inheritDoc}
      */
-    public function security(): SecurityLayerInterface
+    public function securityLayer(): SecurityLayerInterface
     {
         throw new SaslException('The ANONYMOUS mechanism does not support a security layer.');
     }

@@ -68,7 +68,7 @@ class DigestMD5Mechanism implements MechanismInterface
     /**
      * {@inheritDoc}
      */
-    public function security(): SecurityLayerInterface
+    public function securityLayer(): SecurityLayerInterface
     {
         return new DigestMD5SecurityLayer();
     }

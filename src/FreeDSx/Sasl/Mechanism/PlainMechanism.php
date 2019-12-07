@@ -60,7 +60,7 @@ class PlainMechanism implements MechanismInterface
     /**
      * {@inheritDoc}
      */
-    public function security(): SecurityLayerInterface
+    public function securityLayer(): SecurityLayerInterface
     {
        throw new SaslException('The PLAIN mechanism does not support a security layer.');
     }

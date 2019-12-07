@@ -44,5 +44,5 @@ interface MechanismInterface
     /**
      * Get the security layer object for this mechanism.
      */
-    public function security(): SecurityLayerInterface;
+    public function securityLayer(): SecurityLayerInterface;
 }

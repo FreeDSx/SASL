@@ -40,7 +40,7 @@ class CramMD5MechanismTest extends TestCase
     {
         $this->expectException(SaslException::class);
 
-        $this->mechanism->security();
+        $this->mechanism->securityLayer();
     }
 
     public function testChallenge()
