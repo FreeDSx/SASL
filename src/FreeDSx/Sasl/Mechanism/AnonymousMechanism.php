@@ -15,6 +15,7 @@ use FreeDSx\Sasl\Challenge\AnonymousChallenge;
 use FreeDSx\Sasl\Challenge\ChallengeInterface;
 use FreeDSx\Sasl\Exception\SaslException;
 use FreeDSx\Sasl\Security\SecurityLayerInterface;
+use FreeDSx\Sasl\SecurityStrength;
 
 /**
  * The ANONYMOUS mechanism.
@@ -36,25 +37,23 @@ class AnonymousMechanism implements MechanismInterface
     /**
      * {@inheritDoc}
      */
-    public function supportsIntegrity(): bool
-    {
-        return false;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public function supportsPrivacy(): bool
-    {
-        return false;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     public function challenge(): ChallengeInterface
     {
         return new AnonymousChallenge();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function securityStrength(): SecurityStrength
+    {
+        return new SecurityStrength(
+            false,
+            false,
+            false,
+            false,
+            0
+        );
     }
 
     /**

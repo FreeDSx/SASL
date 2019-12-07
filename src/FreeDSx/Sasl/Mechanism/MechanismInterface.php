@@ -13,6 +13,7 @@ namespace FreeDSx\Sasl\Mechanism;
 
 use FreeDSx\Sasl\Challenge\ChallengeInterface;
 use FreeDSx\Sasl\Security\SecurityLayerInterface;
+use FreeDSx\Sasl\SecurityStrength;
 
 /**
  * Common methods mechanisms must implement.
@@ -27,14 +28,9 @@ interface MechanismInterface
     public function getName(): string;
 
     /**
-     * Whether or not this mechanism supports integrity.
+     * Describes various security related aspects of the mechanism.
      */
-    public function supportsIntegrity(): bool;
-
-    /**
-     * Whether or not this mechanism supports privacy.
-     */
-    public function supportsPrivacy(): bool;
+    public function securityStrength(): SecurityStrength;
 
     /**
      * Get the challenge object for this mechanism.

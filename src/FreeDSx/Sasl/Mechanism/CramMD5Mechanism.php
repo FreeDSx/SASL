@@ -15,6 +15,7 @@ use FreeDSx\Sasl\Challenge\ChallengeInterface;
 use FreeDSx\Sasl\Challenge\CramMD5Challenge;
 use FreeDSx\Sasl\Exception\SaslException;
 use FreeDSx\Sasl\Security\SecurityLayerInterface;
+use FreeDSx\Sasl\SecurityStrength;
 
 /**
  * The CRAM-MD5 mechanism.
@@ -36,25 +37,23 @@ class CramMD5Mechanism implements MechanismInterface
     /**
      * {@inheritDoc}
      */
-    public function supportsIntegrity(): bool
-    {
-        return false;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public function supportsPrivacy(): bool
-    {
-        return false;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     public function challenge(): ChallengeInterface
     {
         return new CramMD5Challenge();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function securityStrength(): SecurityStrength
+    {
+        return new SecurityStrength(
+            false,
+            false,
+            true,
+            false,
+            0
+        );
     }
 
     /**

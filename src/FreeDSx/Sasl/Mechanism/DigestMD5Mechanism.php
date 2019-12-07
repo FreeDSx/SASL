@@ -17,6 +17,7 @@ use FreeDSx\Sasl\Exception\SaslException;
 use FreeDSx\Sasl\Message;
 use FreeDSx\Sasl\Security\DigestMD5SecurityLayer;
 use FreeDSx\Sasl\Security\SecurityLayerInterface;
+use FreeDSx\Sasl\SecurityStrength;
 
 /**
  * The Digest-MD5 mechanism.
@@ -42,27 +43,25 @@ class DigestMD5Mechanism implements MechanismInterface
     /**
      * {@inheritDoc}
      */
-    public function supportsIntegrity(): bool
-    {
-        return true;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public function supportsPrivacy(): bool
-    {
-        return true;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     public function challenge(): ChallengeInterface
     {
         $challenge = new DigestMD5Challenge();
 
         return $challenge;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function securityStrength(): SecurityStrength
+    {
+        return new SecurityStrength(
+            true,
+            true,
+            true,
+            false,
+            128
+        );
     }
 
     /**

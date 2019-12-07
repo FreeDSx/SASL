@@ -33,14 +33,15 @@ class DigestMD5MechanismTest extends TestCase
         $this->assertEquals('DIGEST-MD5', (string) $this->mech);
     }
 
-    public function testSupportsPrivacy()
+    public function testSecurityStrength()
     {
-        $this->assertTrue($this->mech->supportsPrivacy());
-    }
+        $strength = $this->mech->securityStrength();
 
-    public function testSupportsIntegrity()
-    {
-        $this->assertTrue($this->mech->supportsIntegrity());
+        $this->assertTrue($strength->supportsPrivacy());
+        $this->assertTrue($strength->supportsIntegrity());
+        $this->assertTrue($strength->supportsAuth());
+        $this->assertFalse($strength->isPlainTextAuth());
+        $this->assertEquals(128, $strength->maxKeySize());
     }
 
     public function testSecurity()

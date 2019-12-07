@@ -26,14 +26,15 @@ class CramMD5MechanismTest extends TestCase
         $this->mechanism = new CramMD5Mechanism();
     }
 
-    public function testSupportsPrivacyReturnsFalse()
+    public function testSecurityStrength()
     {
-        $this->assertFalse($this->mechanism->supportsPrivacy());
-    }
+        $strength = $this->mechanism->securityStrength();
 
-    public function testSupportsIntegrityReturnsFalse()
-    {
-        $this->assertFalse($this->mechanism->supportsIntegrity());
+        $this->assertFalse($strength->supportsPrivacy());
+        $this->assertFalse($strength->supportsIntegrity());
+        $this->assertTrue($strength->supportsAuth());
+        $this->assertFalse($strength->isPlainTextAuth());
+        $this->assertEquals(0, $strength->maxKeySize());
     }
 
     public function testSecurityThrowsAnException()

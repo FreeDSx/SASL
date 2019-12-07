@@ -26,14 +26,15 @@ class PlainMechanismTest extends TestCase
         $this->mechanism = new PlainMechanism();
     }
 
-    public function testSupportsIntegrityReturnsFalse()
+    public function testSecurityStrength()
     {
-        $this->assertFalse($this->mechanism->supportsIntegrity());
-    }
+        $strength = $this->mechanism->securityStrength();
 
-    public function testSupportsPrivacyReturnsFalse()
-    {
-        $this->assertFalse($this->mechanism->supportsPrivacy());
+        $this->assertFalse($strength->supportsPrivacy());
+        $this->assertFalse($strength->supportsIntegrity());
+        $this->assertTrue($strength->supportsAuth());
+        $this->assertTrue($strength->isPlainTextAuth());
+        $this->assertEquals(0, $strength->maxKeySize());
     }
 
     public function testSecurityThrowsAnException()
