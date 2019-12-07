@@ -89,6 +89,21 @@ class Sasl
     }
 
     /**
+     * Given an array of mechanism names, and optional options, select the best supported mechanism available.
+     *
+     * @param string[] $choices array of mechanisms by their name
+     * @param array $options array of options (ie. ['use_integrity' => true])
+     * @return MechanismInterface the mechanism selected.
+     * @throws SaslException if no supported mechanism could be found.
+     */
+    public function select(array $choices = [], array $options = []): MechanismInterface
+    {
+        $selector = new MechanismSelector($this->mechanisms());
+
+        return $selector->select($choices, $options);
+    }
+
+    /**
      * @return MechanismInterface[]
      */
     public function mechanisms(): array

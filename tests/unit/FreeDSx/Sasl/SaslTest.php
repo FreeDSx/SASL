@@ -74,4 +74,10 @@ class SaslTest extends TestCase
         $sasl = new Sasl(['supported' => ['DIGEST-MD5']]);
         $this->assertCount(1, $sasl->mechanisms());
     }
+
+    public function testSelect()
+    {
+        $this->assertInstanceOf(DigestMD5Mechanism::class, $this->sasl->select());
+        $this->assertInstanceOf(CramMD5Mechanism::class, $this->sasl->select(['CRAM-MD5']));
+    }
 }
