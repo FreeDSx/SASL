@@ -146,6 +146,7 @@ class DigestMD5Challenge implements ChallengeInterface
 
         $messageOpts = [
             'username' => $options['username'] ?? null,
+            'digest-uri' => isset($options['host']) ? ($options['service'] . '/' . $options['host']) : null,
             'qop' => $this->context->get('qop'),
             'nonce_size' => $options['nonce_size'],
             'service' => $options['service']

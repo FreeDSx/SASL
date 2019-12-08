@@ -69,6 +69,16 @@ class DigestMD5ChallengeTest extends TestCase
         $this->assertNotEmpty($response->get('response'), 'The response value is empty.');
     }
 
+    public function testThatClientResponseUsesSpecificHostForDigestUriIfRequested()
+    {
+        $response = $this->encoder->decode(
+            $this->challenge->challenge($this->challengeData, ['use_privacy' => true, 'host' => 'foo.bar.local'])->getResponse(),
+            (new SaslContext())->setIsServerMode(true)
+        );
+
+        $this->assertEquals('ldap/foo.bar.local', $response->get('digest-uri'));
+    }
+
     public function testSecurityLayerIsInitializedProperlyInTheContext()
     {
         $options = [
