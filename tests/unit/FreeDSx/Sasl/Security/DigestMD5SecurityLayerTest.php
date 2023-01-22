@@ -97,6 +97,7 @@ class DigestMD5SecurityLayerTest extends TestCase
 
     public function testUnwrapWithPrivacyRC4()
     {
+        $this->markSkippedIfCipherNotSupported('rc4');
         $this->serverContext->set('a1', hex2bin("960bcfc7a190d6b1dcabcd5bc7f53fe0"));
         $this->serverContext->set('cipher', 'rc4');
         $message = hex2bin('303a0201036335041164633d6578616d706c652c64633d636f6d0a01020a0100020100020100010100a30f0403756964040857696c6c69666f413000');
@@ -121,6 +122,7 @@ class DigestMD5SecurityLayerTest extends TestCase
 
     public function testUnwrapWithRC440()
     {
+        $this->markSkippedIfCipherNotSupported('rc4-40');
         $this->serverContext->set('a1', hex2bin('407a52fb725042db234e11b34fb5fd55'));
         $this->serverContext->set('cipher', 'rc4-40');
         $encrypted = hex2bin('056173eaae8b7ac19b1f0d73e8e340c37e83b6ab23377f143b1d2722cf11657b1de53c61ce7a2898786b01a30ca940521c6ade80f01f155e798babc7a1275614656d1b74dee7000100000000');
@@ -233,5 +235,15 @@ class DigestMD5SecurityLayerTest extends TestCase
 
         $this->expectExceptionMessage('The wrapped buffer exceeds the maxbuf length of 2');
         $this->security->unwrap(hex2bin('303a0201036335041164633d6578616d706c652c64633d636f6d0a01020a0100020100020100010100a30f0403756964040857696c6c69666f41300086e03fcc17597a6dfb1c000100000000'), $this->serverContext);
+    }
+
+    private function markSkippedIfCipherNotSupported(string $cipher): void
+    {
+        if (!(in_array($cipher, openssl_get_cipher_methods(), true))) {
+            $this->markTestSkipped(sprintf(
+                'The cipher %s is not supported on this system.',
+                $cipher
+            ));
+        }
     }
 }
