@@ -20,7 +20,8 @@
   "require-dev": {
     "phpunit/phpunit": "^7.0|^8.5|^9.5",
     "phpstan/phpstan": "^0.11|^0.12",
-    "symplify/easy-coding-standard": ">=6.1"
+    "symplify/easy-coding-standard": ">=6.1",
+    "symfony/polyfill-php80": "^1.27"
   },
   "suggest": {
     "ext-openssl": "Needed for encryption for certain mechanisms."
