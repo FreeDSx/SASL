@@ -84,7 +84,7 @@ class DigestMD5Challenge implements ChallengeInterface
     /**
      * @throws SaslException
      */
-    protected function generateClientResponse(?Message $message, $options): ?string
+    protected function generateClientResponse(?Message $message, array $options): ?string
     {
         if ($message === null) {
             return null;

@@ -18,7 +18,7 @@ class SecurityStrengthTest extends TestCase
 {
     protected $strength;
 
-    public function setUp()
+    public function setUp(): void
     {
         parent::setUp();
         $this->strength = new SecurityStrength(

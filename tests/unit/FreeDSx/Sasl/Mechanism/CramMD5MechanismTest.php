@@ -20,7 +20,7 @@ class CramMD5MechanismTest extends TestCase
 {
     protected $mechanism;
 
-    public function setUp()
+    public function setUp(): void
     {
         parent::setUp();
         $this->mechanism = new CramMD5Mechanism();

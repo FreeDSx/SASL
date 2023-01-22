@@ -171,7 +171,7 @@ class MechanismSelector
     {
         throw new SaslException(sprintf(
             'No supported SASL mechanisms could be found from the provided choices: %s',
-            implode($choices, ', ')
+            implode(', ', $choices)
         ));
     }
 }

@@ -64,6 +64,8 @@ class DigestMD5Encoder implements EncoderInterface
 
     /**
      * Tracks the number of times a specific option is encountered during decoding.
+     *
+     * @var array<string, int>
      */
     protected $occurrences = [];
 
@@ -142,8 +144,6 @@ class DigestMD5Encoder implements EncoderInterface
      */
     protected function parseOptValue(string $opt, bool $isServerMode)
     {
-        $value = null;
-
         switch ($opt) {
             case 'realm':
             case 'nonce':
@@ -185,7 +185,6 @@ class DigestMD5Encoder implements EncoderInterface
                     'Digest option %s is not supported.',
                     $opt
                 ));
-                break;
         }
 
         if (isset($this->binary[$this->pos]) && $this->binary[$this->pos] !== ',') {
@@ -210,13 +209,12 @@ class DigestMD5Encoder implements EncoderInterface
     }
 
     /**
-     * @return mixed
+     * @param mixed $value
+     * @return string
      * @throws SaslEncodingException
      */
     protected function encodeOptValue(string $name, $value, bool $isServerMode)
     {
-        $encoded = null;
-
         switch ($name) {
             case 'realm':
             case 'nonce':
@@ -254,7 +252,6 @@ class DigestMD5Encoder implements EncoderInterface
                     'Digest option %s is not supported.',
                     $name
                 ));
-                break;
         }
 
         return $encoded;
@@ -318,6 +315,8 @@ class DigestMD5Encoder implements EncoderInterface
 
     /**
      * @throws SaslEncodingException
+     *
+     * @return string
      */
     protected function parseRegex(string $regex, string $errorMessage)
     {

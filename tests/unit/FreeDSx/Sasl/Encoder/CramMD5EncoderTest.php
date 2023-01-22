@@ -28,7 +28,7 @@ class CramMD5EncoderTest extends TestCase
      */
     protected $context;
 
-    public function setUp()
+    public function setUp(): void
     {
         parent::setUp();
         $this->encoder = new CramMD5Encoder();

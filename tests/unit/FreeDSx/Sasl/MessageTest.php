@@ -20,7 +20,7 @@ class MessageTest extends TestCase
      */
     protected $message;
 
-    public function setUp()
+    public function setUp(): void
     {
         $this->message = new Message(['foo' => 'bar', 'bar' => 'foo']);
     }

@@ -48,7 +48,7 @@ class DigestMD5ChallengeTest extends TestCase
      */
     protected $rspAuthSuccess;
 
-    public function setUp()
+    public function setUp(): void
     {
         $this->challenge = new DigestMD5Challenge();
         $this->encoder = new DigestMD5Encoder();

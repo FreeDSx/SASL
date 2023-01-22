@@ -27,7 +27,7 @@ class CramMD5ChallengeTest extends TestCase
      */
     protected $encoder;
 
-    public function setUp()
+    public function setUp(): void
     {
         parent::setUp();
         $this->challenge = new CramMD5Challenge();

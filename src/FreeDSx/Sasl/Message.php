@@ -21,6 +21,9 @@ use function array_key_exists, count;
  */
 class Message implements Countable, IteratorAggregate
 {
+    /**
+     * @var array<string, mixed>
+     */
     protected $data = [];
 
     public function __construct(array $data = [])
@@ -62,7 +65,7 @@ class Message implements Countable, IteratorAggregate
         return $this->data;
     }
 
-    public function getIterator()
+    public function getIterator(): \Traversable
     {
         return new \ArrayIterator($this->data);
     }

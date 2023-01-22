@@ -24,7 +24,7 @@ class SaslTest extends TestCase
      */
     protected $sasl;
 
-    public function setUp()
+    public function setUp(): void
     {
         $this->sasl = new Sasl();
     }

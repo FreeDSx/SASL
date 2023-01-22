@@ -23,7 +23,7 @@ class DigestMD5EncoderTest extends TestCase
      */
     protected $encoder;
 
-    public function setUp()
+    public function setUp(): void
     {
         $this->encoder = new DigestMD5Encoder();
     }

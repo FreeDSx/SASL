@@ -101,8 +101,10 @@ class SaslContext
 
     /**
      * Set whether or not the current context has authenticated.
+     *
+     * @return $this
      */
-    public function setIsAuthenticated(bool $isAuthenticated)
+    public function setIsAuthenticated(bool $isAuthenticated): self
     {
         $this->isAuthenticated = $isAuthenticated;
 
@@ -185,6 +187,9 @@ class SaslContext
 
     /**
      * Set the value of a SASL specific data piece.
+     *
+     * @param mixed $value
+     * @return $this
      */
     public function set(string $key, $value): self
     {

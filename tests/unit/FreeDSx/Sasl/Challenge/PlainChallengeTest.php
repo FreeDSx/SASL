@@ -21,7 +21,7 @@ class PlainChallengeTest extends TestCase
      */
     protected $challenge;
 
-    public function setUp()
+    public function setUp(): void
     {
         parent::setUp();
         $this->challenge = new PlainChallenge();

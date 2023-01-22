@@ -23,7 +23,7 @@ class DigestMD5MechanismTest extends TestCase
      */
     protected $mech;
 
-    public function setUp()
+    public function setUp(): void
     {
         $this->mech = new DigestMD5Mechanism();
     }

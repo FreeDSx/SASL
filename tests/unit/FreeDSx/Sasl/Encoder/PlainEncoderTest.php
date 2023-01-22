@@ -29,7 +29,7 @@ class PlainEncoderTest extends TestCase
      */
     protected $context;
 
-    public function setUp()
+    public function setUp(): void
     {
         parent::setUp();
         $this->encoder = new PlainEncoder();

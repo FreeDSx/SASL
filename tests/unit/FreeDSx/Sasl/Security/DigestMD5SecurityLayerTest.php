@@ -31,7 +31,7 @@ class DigestMD5SecurityLayerTest extends TestCase
      */
     protected $serverContext;
 
-    public function setUp()
+    public function setUp(): void
     {
         $this->security = new DigestMD5SecurityLayer();
         $this->clientContext = new SaslContext();

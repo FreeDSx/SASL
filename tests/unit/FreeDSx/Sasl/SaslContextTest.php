@@ -20,7 +20,7 @@ class SaslContextTest extends TestCase
      */
     protected $context;
 
-    public function setUp()
+    public function setUp(): void
     {
         $this->context = new SaslContext(['username' => 'foo']);
     }

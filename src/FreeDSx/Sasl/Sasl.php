@@ -30,6 +30,9 @@ class Sasl
      */
     protected $mechanisms = [];
 
+    /**
+     * @var array<string, mixed>
+     */
     protected $options = [
         'supported' => []
     ];
