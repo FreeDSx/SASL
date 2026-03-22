@@ -70,8 +70,12 @@ class CramMD5Challenge implements ChallengeInterface
     {
         $nonce = $options['challenge'] ?? $this->generateNonce(32);
         $challenge = new Message(['challenge' => $nonce]);
-        $this->context->setResponse($this->encoder->encode($challenge, $this->context));
-        $this->context->set('challenge', $challenge->get('challenge'));
+        $encoded = $this->encoder->encode($challenge, $this->context);
+        $this->context->setResponse($encoded);
+        // Store the encoded challenge string (e.g. "<nonce>") rather than the raw nonce.
+        // RFC 2195 requires the HMAC to be computed over the challenge exactly as the client
+        // received it, so the value passed to the password callable must match the encoded form.
+        $this->context->set('challenge', $encoded);
 
         return $this->context;
     }
