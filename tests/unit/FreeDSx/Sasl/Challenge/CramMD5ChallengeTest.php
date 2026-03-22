@@ -61,11 +61,59 @@ class CramMD5ChallengeTest extends TestCase
         $validate = function (string $username, string $challenge) {
             return hash_hmac('md5', $challenge, 'bar');
         };
-        $this->challenge->challenge(null, ['challenge' => '<foobar>']);
+        // The challenge option is the raw nonce; the encoder wraps it as <foobar>.
+        $this->challenge->challenge(null, ['challenge' => 'foobar']);
         $context = $this->challenge->challenge('foo e23c893e9de272d4a75e646265768a45', ['password' => $validate]);
 
         $this->assertTrue($context->isAuthenticated());
         $this->assertTrue($context->isComplete());
+    }
+
+    public function testPasswordCallableReceivesEncodedChallengeMatchingWhatClientUses(): void
+    {
+        $this->challenge = new CramMD5Challenge(true);
+
+        $challengePassedToCallable = null;
+        $validate = function (string $username, string $challenge) use (&$challengePassedToCallable) {
+            $challengePassedToCallable = $challenge;
+
+            return hash_hmac(
+                'md5',
+                $challenge,
+                'bar'
+            );
+        };
+
+        // Server generates challenge with raw nonce 'foobar'; encoder sends '<foobar>' to client.
+        $serverContext = $this->challenge->challenge(
+            null,
+            ['challenge' => 'foobar']
+        );
+        $encodedChallenge = $serverContext->getResponse();
+        $this->assertSame(
+            '<foobar>',
+            $encodedChallenge
+        );
+
+        // Client computes HMAC over the encoded challenge exactly as received.
+        $clientChallenge = new CramMD5Challenge(false);
+        $clientContext = $clientChallenge->challenge(
+            $encodedChallenge,
+            ['username' => 'foo', 'password' => 'bar']
+        );
+
+        // Server validates the client response.
+        $this->challenge->challenge(
+            $clientContext->getResponse(),
+            ['password' => $validate]
+        );
+
+        // The callable must receive the encoded form so it can compute the same digest as the client.
+        $this->assertSame(
+            '<foobar>',
+            $challengePassedToCallable
+        );
+        $this->assertTrue($this->challenge->challenge()->isAuthenticated());
     }
 
     public function testChallengeWithFromServerWithInitialChallenge()
