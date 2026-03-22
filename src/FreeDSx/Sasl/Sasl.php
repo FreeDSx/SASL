@@ -17,6 +17,7 @@ use FreeDSx\Sasl\Mechanism\CramMD5Mechanism;
 use FreeDSx\Sasl\Mechanism\DigestMD5Mechanism;
 use FreeDSx\Sasl\Mechanism\MechanismInterface;
 use FreeDSx\Sasl\Mechanism\PlainMechanism;
+use FreeDSx\Sasl\Mechanism\ScramMechanism;
 
 /**
  * The main SASL class.
@@ -122,6 +123,10 @@ class Sasl
             PlainMechanism::NAME => new PlainMechanism(),
             AnonymousMechanism::NAME => new AnonymousMechanism(),
         ];
+
+        foreach (ScramMechanism::VARIANTS as $variant) {
+            $this->mechanisms[$variant] = new ScramMechanism($variant);
+        }
 
         if (is_array($this->options['supported']) && !empty($this->options['supported'])) {
             foreach (array_keys($this->mechanisms) as $mechName) {

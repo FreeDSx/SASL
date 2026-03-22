@@ -1,0 +1,693 @@
+<?php
+
+/**
+ * This file is part of the FreeDSx SASL package.
+ *
+ * (c) Chad Sikorra <Chad.Sikorra@gmail.com>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace FreeDSx\Sasl\Challenge;
+
+use FreeDSx\Sasl\Encoder\ScramEncoder;
+use FreeDSx\Sasl\Exception\SaslException;
+use FreeDSx\Sasl\Factory\NonceTrait;
+use FreeDSx\Sasl\Message;
+use FreeDSx\Sasl\SaslContext;
+use FreeDSx\Sasl\SaslPrep;
+
+/**
+ * The SCRAM challenge / response class (RFC 5802).
+ *
+ * Handles all SCRAM hash variants (SHA-1, SHA-256, SHA-512, etc.) and both standard
+ * and channel-binding (-PLUS) variants. The hash algorithm is provided at construction
+ * time using the PHP hash algorithm name (e.g. 'sha256', 'sha1', 'sha3-512').
+ *
+ * Client flow (client-first):
+ *   1. challenge(null, options)          -> client-first-message
+ *   2. challenge(server-first, options)  -> client-final-message (with proof)
+ *   3. challenge(server-final, options)  -> null (verifies server signature, sets isAuthenticated)
+ *
+ * Server flow:
+ *   1. challenge(null, options)          -> null (SCRAM is client-initiated)
+ *   2. challenge(client-first, options)  -> server-first-message
+ *   3. challenge(client-final, options)  -> server-final-message (v= or e=)
+ *
+ * @author Chad Sikorra <Chad.Sikorra@gmail.com>
+ */
+class ScramChallenge implements ChallengeInterface
+{
+    use NonceTrait;
+
+    /**
+     * Default nonce size in bytes. Produces ~32 base64 characters; well above the RFC 5802 minimum.
+     */
+    private const NONCE_SIZE = 24;
+
+    private const ALGO_SHA1 = 'sha1';
+
+    private const ALGO_SHA224 = 'sha224';
+
+    private const ALGO_SHA256 = 'sha256';
+
+    private const ALGO_SHA384 = 'sha384';
+
+    private const ALGO_SHA512 = 'sha512';
+
+    private const ALGO_SHA3_512 = 'sha3-512';
+
+    /**
+     * PHP hash algorithm names supported by this class.
+     */
+    private const SUPPORTED_ALGORITHMS = [
+        self::ALGO_SHA1,
+        self::ALGO_SHA224,
+        self::ALGO_SHA256,
+        self::ALGO_SHA384,
+        self::ALGO_SHA512,
+        self::ALGO_SHA3_512,
+    ];
+
+    /**
+     * Minimum PBKDF2 iteration count the client will accept from a server, keyed by PHP hash algorithm name.
+     * Values follow RFC 5802 (SHA-1: 4096) and RFC 7677 (SHA-256: 4096).
+     */
+    private const MIN_ITERATIONS = [
+        self::ALGO_SHA1     => 4096,
+        self::ALGO_SHA224   => 4096,
+        self::ALGO_SHA256   => 4096,
+        self::ALGO_SHA384   => 4096,
+        self::ALGO_SHA512   => 4096,
+        self::ALGO_SHA3_512 => 4096,
+    ];
+
+    /**
+     * Maximum PBKDF2 iteration count accepted from a server (or configured for a server).
+     * OWASP 2024 recommends 600,000 for SHA-256 as a minimum; values above 1,000,000 are
+     * unlikely to reflect a legitimate security policy and risk client-side DoS.
+     */
+    private const MAX_ITERATIONS = 1000000;
+
+    /**
+     * Default PBKDF2 iteration count used when the server generates a challenge, keyed by PHP hash
+     * algorithm name. Values are based on RFC 8265 guidance (≥15,000 for SHA-256) and scaled
+     * conservatively for stronger hash variants.
+     */
+    private const DEFAULT_ITERATIONS = [
+        self::ALGO_SHA1     => 10000,
+        self::ALGO_SHA224   => 15000,
+        self::ALGO_SHA256   => 15000,
+        self::ALGO_SHA384   => 10000,
+        self::ALGO_SHA512   => 10000,
+        self::ALGO_SHA3_512 => 10000,
+    ];
+
+    private const HMAC_CLIENT_KEY = 'Client Key';
+
+    private const HMAC_SERVER_KEY = 'Server Key';
+
+    private const CTX_GS2_HEADER = 'scram-gs2-header';
+
+    private const CTX_CNONCE = 'scram-cnonce';
+
+    private const CTX_CLIENT_FIRST_BARE = 'scram-client-first-bare';
+
+    private const CTX_SERVER_SIGNATURE  = 'scram-server-signature';
+
+    private const CTX_NONCE = 'scram-nonce';
+
+    private const CTX_SALT = 'scram-salt';
+
+    private const CTX_ITERATIONS = 'scram-iterations';
+
+    private const CTX_SERVER_FIRST = 'scram-server-first';
+
+    private const INVALID_PROOF = 'e=invalid-proof';
+
+    /**
+     * @var SaslContext
+     */
+    private $context;
+
+    /**
+     * @var ScramEncoder
+     */
+    private $encoder;
+
+    /**
+     * PHP hash algorithm name (e.g. 'sha256', 'sha1', 'sha3-512').
+     *
+     * @var string
+     */
+    private $hashAlgorithm;
+
+    /**
+     * Whether this is a channel-binding (-PLUS) variant.
+     *
+     * @var bool
+     */
+    private $isChannelBinding;
+
+    /**
+     * @throws SaslException
+     */
+    public function __construct(
+        bool $isServerMode = false,
+        string $hashAlgorithm = 'sha256',
+        bool $isChannelBinding = false
+    ) {
+        if (!in_array($hashAlgorithm, self::SUPPORTED_ALGORITHMS, true)) {
+            throw new SaslException(sprintf(
+                'The hash algorithm "%s" is not supported. Supported algorithms: %s.',
+                $hashAlgorithm,
+                implode(', ', self::SUPPORTED_ALGORITHMS)
+            ));
+        }
+
+        $this->hashAlgorithm = $hashAlgorithm;
+        $this->isChannelBinding = $isChannelBinding;
+        $this->encoder = new ScramEncoder();
+        $this->context = new SaslContext();
+        $this->context->setIsServerMode($isServerMode);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function challenge(
+        ?string $received = null,
+        array $options = []
+    ): SaslContext {
+        # Keep the raw received string for auth-message construction before decoding.
+        $rawReceived = $received;
+        $received = $received !== null ? $this->encoder->decode($received, $this->context) : null;
+
+        if ($this->context->isServerMode()) {
+            $response = $this->generateServerResponse($received, $rawReceived, $options);
+        } else {
+            $response = $this->generateClientResponse($received, $rawReceived, $options);
+        }
+
+        $this->context->setResponse($response);
+
+        return $this->context;
+    }
+
+    /**
+     * @throws SaslException
+     */
+    private function generateClientResponse(
+        ?Message $received,
+        ?string $rawReceived,
+        array $options
+    ): ?string {
+        # Step 1: No message yet — generate client-first-message.
+        if ($received === null) {
+            return $this->generateClientFirst($options);
+        }
+
+        # Step 2: Server-first-message received (contains 's' and 'i') — generate client-final-message.
+        if ($received->has('s') && $received->has('i')) {
+            return $this->generateClientFinal($received, (string) $rawReceived, $options);
+        }
+
+        # Step 3: Server-final-message received (contains 'v' or 'e') — verify and complete.
+        if ($received->has('v') || $received->has('e')) {
+            $this->verifyServerFinal($received);
+
+            return null;
+        }
+
+        throw new SaslException('Unexpected SCRAM message received on the client.');
+    }
+
+    /**
+     * @throws SaslException
+     */
+    private function generateServerResponse(
+        ?Message $received,
+        ?string $rawReceived,
+        array $options
+    ): ?string {
+        # SCRAM is client-initiated — the server has no opening message.
+        if ($received === null) {
+            return null;
+        }
+
+        # Step 1: Client-first-message received (contains 'n' and 'r', no proof yet).
+        if ($received->has('n') && $received->has('r') && !$received->has('p')) {
+            return $this->generateServerFirst($received, (string) $rawReceived, $options);
+        }
+
+        # Step 2: Client-final-message received (contains channel binding 'c' and proof 'p').
+        if ($received->has('c') && $received->has('p')) {
+            return $this->generateServerFinal(
+                $received,
+                $options
+            );
+        }
+
+        throw new SaslException('Unexpected SCRAM message received on the server.');
+    }
+
+    /**
+     * Generates the client-first-message: GS2-header + client-first-message-bare.
+     *
+     *   client-first-message = gs2-header client-first-message-bare
+     *   client-first-message-bare = [reserved-mext ","] n=username "," r=nonce
+     *
+     * @param array{username?: string, cnonce?: string, cbind_type?: string} $options
+     *
+     * @throws SaslException
+     */
+    private function generateClientFirst(array $options): string
+    {
+        $username = $options['username'] ?? null;
+        if ($username === null) {
+            throw new SaslException('A username is required to initiate SCRAM authentication.');
+        }
+
+        $cnonce = $options['cnonce'] ?? $this->generateNonce(self::NONCE_SIZE);
+        if ($cnonce === '') {
+            throw new SaslException('The client nonce must not be empty.');
+        }
+
+        if ($this->isChannelBinding) {
+            $cbindType = $options['cbind_type'] ?? 'tls-unique';
+            $this->validateCbindType($cbindType);
+            $gs2Header = 'p=' . $cbindType . ',,';
+        } else {
+            $gs2Header = 'n,,';
+        }
+
+        # RFC 5802 §2: apply SASLprep before encoding the username.
+        $username = SaslPrep::prepare($username);
+
+        # RFC 5802 section 5.1: '=' and ',' in the username must be encoded.
+        $username = str_replace(
+            ['=', ','],
+            ['=3D', '=2C'],
+            $username
+        );
+
+        $clientFirstBare = 'n=' . $username . ',r=' . $cnonce;
+
+        $this->context->set(self::CTX_GS2_HEADER, $gs2Header);
+        $this->context->set(self::CTX_CNONCE, $cnonce);
+        $this->context->set(self::CTX_CLIENT_FIRST_BARE, $clientFirstBare);
+
+        return $gs2Header . $clientFirstBare;
+    }
+
+    /**
+     * Generates the client-final-message from the received server-first-message.
+     *
+     *   client-final-message = client-final-message-without-proof "," p=client-proof
+     *   client-final-message-without-proof = "c=" base64 "," r=nonce
+     *
+     * @param array{password?: string, cbind_data?: string} $options
+     *
+     * @throws SaslException
+     */
+    private function generateClientFinal(
+        Message $serverFirst,
+        string $rawServerFirst,
+        array $options
+    ): string {
+        $password = $options['password'] ?? null;
+        if ($password === null) {
+            throw new SaslException('A password is required to complete SCRAM authentication.');
+        }
+
+        # Guard against out-of-order calls: client-first must have run first to populate the cnonce.
+        $cnonce = $this->context->get(self::CTX_CNONCE);
+        if ($cnonce === null) {
+            throw new SaslException(
+                'client-final called before client-first: no client nonce found in context.'
+            );
+        }
+        $cnonce = (string) $cnonce;
+
+        # The full nonce must begin with the client nonce we sent — verify before processing anything else.
+        [$fullNonce, $salt, $iterations] = $this->parseServerFirst($serverFirst, $cnonce);
+
+        # Channel binding value: base64(gs2-header + cbind-data).
+        $gs2Header = (string) $this->context->get(self::CTX_GS2_HEADER);
+        $cbindData = $options['cbind_data'] ?? '';
+        $channelBinding = base64_encode($gs2Header . $cbindData);
+
+        $clientFinalWithoutProof = 'c=' . $channelBinding . ',r=' . $fullNonce;
+
+        # RFC 5802 section 3: AuthMessage = client-first-bare "," server-first "," client-final-without-proof
+        $authMessage = $this->context->get(self::CTX_CLIENT_FIRST_BARE)
+            . ',' . $rawServerFirst
+            . ',' . $clientFinalWithoutProof;
+
+        $saltedPassword = $this->deriveSaltedPassword((string) $password, $salt, $iterations);
+        $clientProof = $this->makeClientProof(
+            $saltedPassword,
+            $authMessage
+        );
+
+        # Pre-compute the expected server signature so we can verify it in step 3.
+        $serverKey = $this->hmac(
+            $saltedPassword,
+            self::HMAC_SERVER_KEY
+        );
+        $serverSignature = $this->hmac(
+            $serverKey,
+            $authMessage
+        );
+        $this->context->set(
+            self::CTX_SERVER_SIGNATURE,
+            base64_encode($serverSignature)
+        );
+
+        return $clientFinalWithoutProof . ',p=' . base64_encode($clientProof);
+    }
+
+    /**
+     * Verifies the server-final-message and marks authentication as complete.
+     *
+     * @throws SaslException
+     */
+    private function verifyServerFinal(Message $serverFinal): void
+    {
+        $this->context->setIsComplete(true);
+
+        if ($serverFinal->has('e')) {
+            throw new SaslException(sprintf(
+                'SCRAM authentication failed with server error: %s',
+                $serverFinal->get('e')
+            ));
+        }
+
+        $expectedSig = (string) $this->context->get(self::CTX_SERVER_SIGNATURE);
+        $receivedSig = (string) $serverFinal->get('v');
+
+        if (!hash_equals($expectedSig, $receivedSig)) {
+            throw new SaslException('The server signature does not match the expected value.');
+        }
+
+        $this->context->setIsAuthenticated(true);
+    }
+
+    /**
+     * Generates the server-first-message in response to the client-first-message.
+     *
+     *   server-first-message = [reserved-mext ","] r=nonce "," s=salt "," i=iteration-count
+     *
+     * @param array{nonce?: string, salt?: string, iterations?: int} $options
+     *
+     * @throws SaslException
+     */
+    private function generateServerFirst(
+        Message $clientFirst,
+        string $rawClientFirst,
+        array $options
+    ): string {
+        $cnonce = (string) $clientFirst->get('r');
+        $snonce = $options['nonce'] ?? $this->generateNonce(self::NONCE_SIZE);
+        $fullNonce = $cnonce . $snonce;
+
+        $salt = $options['salt'] ?? random_bytes(16);
+        $iterations = (int) ($options['iterations'] ?? self::DEFAULT_ITERATIONS[$this->hashAlgorithm]);
+        if ($iterations < 1) {
+            throw new SaslException('The iteration count must be greater than zero.');
+        }
+        if ($iterations > self::MAX_ITERATIONS) {
+            throw new SaslException(sprintf(
+                'The iteration count of %d exceeds the maximum allowed of %d.',
+                $iterations,
+                self::MAX_ITERATIONS
+            ));
+        }
+
+        $clientFirstBare = $this->extractClientFirstBare($rawClientFirst);
+        $serverFirst = 'r=' . $fullNonce . ',s=' . base64_encode($salt) . ',i=' . $iterations;
+
+        $this->context->set(self::CTX_CLIENT_FIRST_BARE, $clientFirstBare);
+        $this->context->set(self::CTX_NONCE, $fullNonce);
+        $this->context->set(self::CTX_SALT, $salt);
+        $this->context->set(self::CTX_ITERATIONS, $iterations);
+        $this->context->set(self::CTX_SERVER_FIRST, $serverFirst);
+
+        return $serverFirst;
+    }
+
+    /**
+     * Verifies the client-final-message and generates the server-final-message.
+     *
+     * Returns 'v=<server-signature>' on success, or 'e=<error>' on failure.
+     *
+     * @param array{password?: string} $options
+     *
+     * @throws SaslException
+     */
+    private function generateServerFinal(
+        Message $clientFinal,
+        array $options
+    ): string {
+        $this->context->setIsComplete(true);
+
+        $password = $options['password'] ?? null;
+        if ($password === null) {
+            return self::INVALID_PROOF;
+        }
+
+        $fullNonce = (string) $this->context->get(self::CTX_NONCE);
+        if ($clientFinal->get('r') !== $fullNonce) {
+            return self::INVALID_PROOF;
+        }
+
+        $salt = (string) $this->context->get(self::CTX_SALT);
+        $iterations = (int) $this->context->get(self::CTX_ITERATIONS);
+
+        # Reconstruct client-final-without-proof for the auth message.
+        # RFC 5802: the order is fixed as c=...,r=...[,extensions] so we can rebuild it safely.
+        $clientFinalWithoutProof = 'c=' . $clientFinal->get('c') . ',r=' . $clientFinal->get('r');
+        $authMessage = $this->context->get(self::CTX_CLIENT_FIRST_BARE)
+            . ',' . $this->context->get(self::CTX_SERVER_FIRST)
+            . ',' . $clientFinalWithoutProof;
+
+        try {
+            $saltedPassword = $this->deriveSaltedPassword(
+                (string) $password,
+                $salt,
+                $iterations
+            );
+        } catch (SaslException $e) {
+            return self::INVALID_PROOF;
+        }
+
+        if (!$this->isValidClientProof($clientFinal, $saltedPassword, $authMessage)) {
+            return self::INVALID_PROOF;
+        }
+
+        $serverKey = $this->hmac($saltedPassword, self::HMAC_SERVER_KEY);
+        $serverSignature = $this->hmac($serverKey, $authMessage);
+
+        $this->context->setIsAuthenticated(true);
+
+        return 'v=' . base64_encode($serverSignature);
+    }
+
+    /**
+     * Strips the GS2 header from the client-first-message, returning only the bare portion.
+     *
+     * GS2 header formats end with ',,': 'n,,', 'y,,', or 'p=type,,'.
+     *
+     * @throws SaslException
+     */
+    private function extractClientFirstBare(string $clientFirst): string
+    {
+        $pos = strpos(
+            $clientFirst,
+            ',,'
+        );
+        if ($pos === false) {
+            throw new SaslException('Unable to parse GS2 header from client-first-message.');
+        }
+
+        return substr(
+            $clientFirst,
+            $pos + 2
+        );
+    }
+
+    /**
+     * Validates and parses the server-first-message fields needed by the client.
+     *
+     * @return array{0: string, 1: string, 2: int} full nonce, salt, iterations
+     *
+     * @throws SaslException
+     */
+    private function parseServerFirst(
+        Message $serverFirst,
+        string $cnonce
+    ): array {
+        $fullNonce = (string) $serverFirst->get('r');
+        if (strncmp($fullNonce, $cnonce, strlen($cnonce)) !== 0) {
+            throw new SaslException('The server nonce does not begin with the client nonce.');
+        }
+
+        $salt = base64_decode(
+            (string) $serverFirst->get('s'),
+            true
+        );
+        if ($salt === false) {
+            throw new SaslException('The server-provided salt is not valid base64.');
+        }
+
+        $iterations = (int) $serverFirst->get('i');
+        $minIterations = self::MIN_ITERATIONS[$this->hashAlgorithm];
+        if ($iterations < $minIterations) {
+            throw new SaslException(sprintf(
+                'The server iteration count of %d is below the minimum of %d for %s.',
+                $iterations,
+                $minIterations,
+                $this->hashAlgorithm
+            ));
+        }
+        if ($iterations > self::MAX_ITERATIONS) {
+            throw new SaslException(sprintf(
+                'The server iteration count of %d exceeds the maximum allowed of %d.',
+                $iterations,
+                self::MAX_ITERATIONS
+            ));
+        }
+
+        return [
+            $fullNonce,
+            $salt,
+            $iterations
+        ];
+    }
+
+    /**
+     * Applies SASLprep to the password and derives the SCRAM SaltedPassword via PBKDF2.
+     *
+     * @throws SaslException if SASLprep rejects the password.
+     */
+    private function deriveSaltedPassword(
+        string $password,
+        string $salt,
+        int $iterations
+    ): string {
+        return $this->pbkdf2(
+            SaslPrep::prepare($password),
+            $salt,
+            $iterations
+        );
+    }
+
+    /**
+     * Decodes and verifies the client proof from the client-final-message.
+     *
+     * Returns true only when the base64 decoding succeeds and the proof matches.
+     */
+    private function isValidClientProof(
+        Message $clientFinal,
+        string $saltedPassword,
+        string $authMessage
+    ): bool {
+        $expectedProof = $this->makeClientProof(
+            $saltedPassword,
+            $authMessage
+        );
+        $receivedProof = base64_decode(
+            (string) $clientFinal->get('p'),
+            true
+        );
+
+        return $receivedProof !== false
+            && hash_equals($expectedProof, $receivedProof);
+    }
+
+    /**
+     * Computes the SCRAM SaltedPassword using PBKDF2.
+     *
+     *   SaltedPassword := Hi(Normalize(password), salt, i)
+     */
+    private function pbkdf2(
+        string $password,
+        string $salt,
+        int $iterations
+    ): string {
+        return hash_pbkdf2(
+            $this->hashAlgorithm,
+            $password,
+            $salt,
+            $iterations,
+            0,
+            true
+        );
+    }
+
+    /**
+     * Computes an HMAC with the configured hash algorithm, returning raw bytes.
+     */
+    private function hmac(
+        string $key,
+        string $data
+    ): string {
+        return hash_hmac(
+            $this->hashAlgorithm,
+            $data,
+            $key,
+            true
+        );
+    }
+
+    /**
+     * Computes a hash with the configured hash algorithm, returning raw bytes.
+     */
+    private function hash(string $data): string
+    {
+        return hash(
+            $this->hashAlgorithm,
+            $data,
+            true
+        );
+    }
+
+    /**
+     * @param string $saltedPassword
+     * @param string $authMessage
+     * @return string
+     */
+    private function makeClientProof(
+        string $saltedPassword,
+        string $authMessage
+    ): string {
+        $clientKey = $this->hmac(
+            $saltedPassword,
+            self::HMAC_CLIENT_KEY
+        );
+        $storedKey = $this->hash($clientKey);
+        $clientSignature = $this->hmac(
+            $storedKey,
+            $authMessage
+        );
+
+        return $clientKey ^ $clientSignature;
+    }
+
+    /**
+     * RFC 5801 §4: cb-type = 1*(ALPHA / DIGIT / "." / "-"). Reject anything else to prevent
+     * GS2 header injection (e.g. a type containing ',,' would corrupt the auth-message).
+     *
+     * @throws SaslException
+     */
+    private function validateCbindType(string $cbindType): void
+    {
+        if (!preg_match('/^[A-Za-z0-9.\-]+$/', $cbindType)) {
+            throw new SaslException(
+                'The channel binding type contains invalid characters. ' .
+                'Only alphanumeric characters, hyphens, and dots are permitted.'
+            );
+        }
+    }
+}
