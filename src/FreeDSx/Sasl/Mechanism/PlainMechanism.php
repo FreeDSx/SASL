@@ -37,9 +37,9 @@ class PlainMechanism implements MechanismInterface
     /**
      * {@inheritDoc}
      */
-    public function challenge(): ChallengeInterface
+    public function challenge(bool $serverMode = false): ChallengeInterface
     {
-        return new PlainChallenge();
+        return new PlainChallenge($serverMode);
     }
 
     /**

@@ -43,7 +43,7 @@ class DigestMD5Mechanism implements MechanismInterface
     /**
      * {@inheritDoc}
      */
-    public function challenge(): ChallengeInterface
+    public function challenge(bool $serverMode = false): ChallengeInterface
     {
         $challenge = new DigestMD5Challenge();
 
