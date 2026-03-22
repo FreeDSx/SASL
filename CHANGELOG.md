@@ -1,6 +1,10 @@
 CHANGELOG
 =========
 
+0.2.1 (2026-03-22)
+------------------
+* Allow specifying server vs client mode when creating a challenge.
+
 0.2.0 (2026-03-22)
 ------------------
 * Fix CRAM-MD5 server challenge to store the encoded challenge string (e.g. `<nonce>`) in the SASL context rather than the raw nonce, so the password callable receives the value the client used for its HMAC per RFC 2195.

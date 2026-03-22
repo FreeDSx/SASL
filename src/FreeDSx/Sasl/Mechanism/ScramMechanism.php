@@ -126,9 +126,13 @@ class ScramMechanism implements MechanismInterface
     /**
      * {@inheritDoc}
      */
-    public function challenge(): ChallengeInterface
+    public function challenge(bool $serverMode = false): ChallengeInterface
     {
-        return new ScramChallenge(false, $this->hashAlgorithm, $this->channelBinding);
+        return new ScramChallenge(
+            $serverMode,
+            $this->hashAlgorithm,
+            $this->channelBinding
+        );
     }
 
     /**

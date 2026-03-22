@@ -37,9 +37,9 @@ class CramMD5Mechanism implements MechanismInterface
     /**
      * {@inheritDoc}
      */
-    public function challenge(): ChallengeInterface
+    public function challenge(bool $serverMode = false): ChallengeInterface
     {
-        return new CramMD5Challenge();
+        return new CramMD5Challenge($serverMode);
     }
 
     /**

@@ -35,7 +35,7 @@ interface MechanismInterface
     /**
      * Get the challenge object for this mechanism.
      */
-    public function challenge(): ChallengeInterface;
+    public function challenge(bool $serverMode = false): ChallengeInterface;
 
     /**
      * Get the security layer object for this mechanism.

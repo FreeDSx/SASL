@@ -37,9 +37,9 @@ class AnonymousMechanism implements MechanismInterface
     /**
      * {@inheritDoc}
      */
-    public function challenge(): ChallengeInterface
+    public function challenge(bool $serverMode = false): ChallengeInterface
     {
-        return new AnonymousChallenge();
+        return new AnonymousChallenge($serverMode);
     }
 
     /**
