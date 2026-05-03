@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -16,38 +18,36 @@ use FreeDSx\Sasl\Message;
 use FreeDSx\Sasl\SaslContext;
 
 /**
- * Responsible for encoding / decoding PLAIN messages.
+ * Encodes / decodes PLAIN messages.
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class PlainEncoder implements EncoderInterface
+final readonly class PlainEncoder implements EncoderInterface
 {
-    /**
-     * {@inheritDoc}
-     */
-    public function encode(Message $message, SaslContext $context): string
-    {
+    public function encode(
+        Message $message,
+        SaslContext $context,
+    ): string {
         if (!$message->has('authzid')) {
             throw new SaslEncodingException('The PLAIN message must contain a authzid.');
         }
         if (!$message->has('authcid')) {
-            throw new SaslEncodingException('The PLAIN message must contain a authzid.');
+            throw new SaslEncodingException('The PLAIN message must contain a authcid.');
         }
         if (!$message->has('password')) {
             throw new SaslEncodingException('The PLAIN message must contain a password.');
         }
-        $authzid = $this->validate($message->get('authzid'));
-        $authcid = $this->validate($message->get('authcid'));
-        $password = $this->validate($message->get('password'));
+        $authzid = $this->validate((string) $message->get('authzid'));
+        $authcid = $this->validate((string) $message->get('authcid'));
+        $password = $this->validate((string) $message->get('password'));
 
         return $authzid . "\x00" . $authcid . "\x00" . $password;
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    public function decode(string $data, SaslContext $context): Message
-    {
+    public function decode(
+        string $data,
+        SaslContext $context,
+    ): Message {
         if (preg_match('/^([^\x0]+)\x00([^\x0]+)\x00([^\x0]+)$/', $data, $matches) === 0) {
             throw new SaslEncodingException('The PLAIN message data is malformed.');
         }
@@ -59,9 +59,9 @@ class PlainEncoder implements EncoderInterface
         ]);
     }
 
-    protected function validate(string $data): string
+    private function validate(string $data): string
     {
-        if (strpos($data,"\x00") !== false) {
+        if (str_contains($data, "\x00")) {
             throw new SaslEncodingException('PLAIN mechanism data cannot contain a null character.');
         }
 

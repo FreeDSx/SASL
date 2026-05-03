@@ -1,6 +1,15 @@
 CHANGELOG
 =========
 
+1.0.0 (2026-XX-XX)
+------------------
+* Raise the minimum PHP version to 8.2.
+* Introduce strict types, typed properties, and `final` across classes.
+* Replace mechanism-name string constants with the `MechanismName` backed enum (see UPGRADE-1.0.md).
+* Replace SCRAM hash-algorithm string constants with the `HashAlgorithm` enum.
+* Replace DIGEST-MD5 message-type integer constants with the `DigestMD5MessageType` enum.
+* Replace DIGEST-MD5 cipher string keys with the `DigestMD5Cipher` enum.
+
 0.2.1 (2026-03-22)
 ------------------
 * Allow specifying server vs client mode when creating a challenge.

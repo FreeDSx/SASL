@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -20,50 +22,42 @@ use FreeDSx\Sasl\SaslContext;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class CramMD5Encoder implements EncoderInterface
+final readonly class CramMD5Encoder implements EncoderInterface
 {
-
-    /**
-     * {@inheritDoc}
-     */
-    public function encode(Message $message, SaslContext $context): string
-    {
-        if ($context->isServerMode()) {
-            return $this->encodeServerChallenge($message);
-        } else {
-            return $this->encodeClientResponse($message);
-        }
+    public function encode(
+        Message $message,
+        SaslContext $context,
+    ): string {
+        return $context->isServerMode()
+            ? $this->encodeServerChallenge($message)
+            : $this->encodeClientResponse($message);
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    public function decode(string $data, SaslContext $context): Message
-    {
-        if ($context->isServerMode()) {
-            return $this->decodeClientResponse($data);
-        } else {
-            return $this->decodeServerChallenge($data);
-        }
+    public function decode(
+        string $data,
+        SaslContext $context,
+    ): Message {
+        return $context->isServerMode()
+            ? $this->decodeClientResponse($data)
+            : $this->decodeServerChallenge($data);
     }
 
     /**
      * @throws SaslEncodingException
      */
-    protected function encodeServerChallenge(Message $message): string
+    private function encodeServerChallenge(Message $message): string
     {
         if (!$message->has('challenge')) {
             throw new SaslEncodingException('The server challenge message must contain a "challenge".');
         }
-        $challenge = $message->get('challenge');
 
-        return '<' . $challenge . '>';
+        return '<' . $message->get('challenge') . '>';
     }
 
     /**
      * @throws SaslEncodingException
      */
-    protected function encodeClientResponse(Message $message): string
+    private function encodeClientResponse(Message $message): string
     {
         if (!$message->has('username')) {
             throw new SaslEncodingException('The client response must contain a username.');
@@ -71,10 +65,10 @@ class CramMD5Encoder implements EncoderInterface
         if (!$message->has('digest')) {
             throw new SaslEncodingException('The client response must contain a digest.');
         }
-        $username = $message->get('username');
-        $digest = $message->get('digest');
+        $username = (string) $message->get('username');
+        $digest = (string) $message->get('digest');
 
-        if (!preg_match('/^[0-9a-f]{32}$/', $digest)) {
+        if (preg_match('/^[0-9a-f]{32}$/', $digest) !== 1) {
             throw new SaslEncodingException('The client digest must be a 16 octet, lower-case, hexadecimal value');
         }
 
@@ -84,9 +78,9 @@ class CramMD5Encoder implements EncoderInterface
     /**
      * @throws SaslEncodingException
      */
-    protected function decodeServerChallenge(string $challenge): Message
+    private function decodeServerChallenge(string $challenge): Message
     {
-        if (!preg_match('/^<.*>$/', $challenge)) {
+        if (preg_match('/^<.*>$/', $challenge) !== 1) {
             throw new SaslEncodingException('The server challenge is malformed.');
         }
 
@@ -96,9 +90,9 @@ class CramMD5Encoder implements EncoderInterface
     /**
      * @throws SaslEncodingException
      */
-    protected function decodeClientResponse(string $response): Message
+    private function decodeClientResponse(string $response): Message
     {
-        if (!preg_match('/(.*) ([0-9a-f]{32})$/', $response, $matches)) {
+        if (preg_match('/(.*) ([0-9a-f]{32})$/', $response, $matches) !== 1) {
             throw new SaslEncodingException('The client response is malformed.');
         }
 

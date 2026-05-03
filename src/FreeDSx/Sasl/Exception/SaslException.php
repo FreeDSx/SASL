@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -11,11 +13,13 @@
 
 namespace FreeDSx\Sasl\Exception;
 
+use Exception;
+
 /**
  * General SASL exception for the library.
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class SaslException extends \Exception
+class SaslException extends Exception
 {
 }

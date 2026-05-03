@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -24,11 +26,13 @@ interface MessageFactoryInterface
     /**
      * Create a message object of a specific type for a given mechanism.
      *
-     * @param int $type
-     * @param array $options
-     * @param Message|null $received
-     * @return Message
+     * @param array<string, mixed> $options
+     *
      * @throws SaslException
      */
-    public function create(int $type, array $options = [], ?Message $received = null): Message;
+    public function create(
+        DigestMD5MessageType $type,
+        array $options = [],
+        ?Message $received = null,
+    ): Message;
 }

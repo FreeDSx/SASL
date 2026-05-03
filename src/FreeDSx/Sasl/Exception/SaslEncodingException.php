@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -16,6 +18,6 @@ namespace FreeDSx\Sasl\Exception;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class SaslEncodingException extends SaslException
+final class SaslEncodingException extends SaslException
 {
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -12,7 +14,6 @@
 namespace FreeDSx\Sasl\Challenge;
 
 use FreeDSx\Sasl\Encoder\CramMD5Encoder;
-use FreeDSx\Sasl\Encoder\EncoderInterface;
 use FreeDSx\Sasl\Exception\SaslException;
 use FreeDSx\Sasl\Factory\NonceTrait;
 use FreeDSx\Sasl\Message;
@@ -23,19 +24,13 @@ use FreeDSx\Sasl\SaslContext;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class CramMD5Challenge implements ChallengeInterface
+final readonly class CramMD5Challenge implements ChallengeInterface
 {
     use NonceTrait;
 
-    /**
-     * @var SaslContext
-     */
-    protected $context;
+    private readonly SaslContext $context;
 
-    /**
-     * @var EncoderInterface
-     */
-    protected $encoder;
+    private readonly CramMD5Encoder $encoder;
 
     public function __construct(bool $isServerMode = false)
     {
@@ -44,60 +39,75 @@ class CramMD5Challenge implements ChallengeInterface
         $this->context->setIsServerMode($isServerMode);
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    public function challenge(?string $received = null, array $options = []): SaslContext
-    {
-        $received = ($received === null) ? null : $this->encoder->decode($received, $this->context);
+    public function challenge(
+        ?string $received = null,
+        array $options = [],
+    ): SaslContext {
+        $message = $received === null ? null : $this->encoder->decode($received, $this->context);
 
-        if ($received === null) {
-            !$this->context->isServerMode() ? $this->context : $this->generateServerChallenge($options);
+        if ($message === null) {
+            if ($this->context->isServerMode()) {
+                $this->generateServerChallenge($options);
+            }
 
             return $this->context;
         }
 
         if ($this->context->isServerMode()) {
-            $this->validateClientResponse($received, $options);
+            $this->validateClientResponse($message, $options);
         } else {
-            $this->generateClientResponse($received, $options);
+            $this->generateClientResponse($message, $options);
         }
 
         return $this->context;
     }
 
-    protected function generateServerChallenge(array $options): SaslContext
+    /**
+     * @param array<string, mixed> $options
+     */
+    private function generateServerChallenge(array $options): void
     {
-        $nonce = $options['challenge'] ?? $this->generateNonce(32);
+        $nonce = (string) ($options['challenge'] ?? $this->generateNonce(32));
         $challenge = new Message(['challenge' => $nonce]);
         $encoded = $this->encoder->encode($challenge, $this->context);
         $this->context->setResponse($encoded);
-        // Store the encoded challenge string (e.g. "<nonce>") rather than the raw nonce.
-        // RFC 2195 requires the HMAC to be computed over the challenge exactly as the client
-        // received it, so the value passed to the password callable must match the encoded form.
+        # Store the encoded challenge string (e.g. "<nonce>") rather than the raw nonce. RFC 2195
+        # requires the HMAC to be computed over the challenge exactly as the client received it.
         $this->context->set('challenge', $encoded);
-
-        return $this->context;
     }
 
-    protected function generateClientResponse(Message $received, array $options): void
-    {
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @throws SaslException
+     */
+    private function generateClientResponse(
+        Message $received,
+        array $options,
+    ): void {
         if (!$received->has('challenge')) {
             throw new SaslException('Expected a server challenge to generate a client response.');
         }
-        if (!(isset($options['username']) && isset($options['password']))) {
+        if (!isset($options['username'], $options['password'])) {
             throw new SaslException('A username and password is required for a client response.');
         }
         $response = new Message([
             'username' => $options['username'],
-            'digest' => $this->generateDigest($received->get('challenge'), $options['password']),
+            'digest' => $this->generateDigest((string) $received->get('challenge'), (string) $options['password']),
         ]);
         $this->context->setResponse($this->encoder->encode($response, $this->context));
         $this->context->setIsComplete(true);
     }
 
-    protected function validateClientResponse(Message $received, array $options): void
-    {
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @throws SaslException
+     */
+    private function validateClientResponse(
+        Message $received,
+        array $options,
+    ): void {
         if (!$received->has('username')) {
             throw new SaslException('The client response must have a username.');
         }
@@ -120,12 +130,14 @@ class CramMD5Challenge implements ChallengeInterface
         $this->context->setIsComplete(true);
     }
 
-    protected function generateDigest(string $challenge, string $key): string
-    {
+    private function generateDigest(
+        string $challenge,
+        string $key,
+    ): string {
         return hash_hmac(
             'md5',
             $challenge,
-            $key
+            $key,
         );
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -25,7 +27,7 @@ use FreeDSx\Sasl\Exception\SaslException;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class SaslPrep
+final class SaslPrep
 {
     /**
      * Maps named capture group names (from PROHIBITED_PATTERN) to their exception messages.

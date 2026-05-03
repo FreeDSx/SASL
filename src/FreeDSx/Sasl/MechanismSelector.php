@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -13,35 +15,35 @@ namespace FreeDSx\Sasl;
 
 use FreeDSx\Sasl\Exception\SaslException;
 use FreeDSx\Sasl\Mechanism\MechanismInterface;
+use FreeDSx\Sasl\Mechanism\MechanismName;
 
 /**
  * Given an array of mechanism names, choose the best one available.
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class MechanismSelector
+final readonly class MechanismSelector
 {
-    /**
-     * @var MechanismInterface[]
-     */
-    protected $mechanisms;
-
     /**
      * @param MechanismInterface[] $mechanisms
      */
-    public function __construct(array $mechanisms)
+    public function __construct(private readonly array $mechanisms)
     {
-        $this->mechanisms = $mechanisms;
     }
 
     /**
+     * @param MechanismName[] $choices
+     * @param array<string, mixed> $options
+     *
      * @throws SaslException
      */
-    public function select(array $choices = [], array $options = []): MechanismInterface
-    {
-        $mechs = $this->getAvailableMechsFromChoices($choices, $options);
+    public function select(
+        array $choices = [],
+        array $options = [],
+    ): MechanismInterface {
+        $available = $this->getAvailableMechsFromChoices($choices, $options);
 
-        return $this->selectMech($mechs);
+        return $this->selectMech($available);
     }
 
     /**
@@ -59,10 +61,10 @@ class MechanismSelector
      * some vendors have different ways of calculating it, making it somewhat less meaningful.
      *
      * @param MechanismInterface[] $available
-     * @return MechanismInterface
+     *
      * @throws SaslException
      */
-    protected function selectMech(array $available): MechanismInterface
+    private function selectMech(array $available): MechanismInterface
     {
         # We sort the mechanisms by:
         #  1. Key size first.
@@ -70,17 +72,20 @@ class MechanismSelector
         #  3. Integrity / signing support.
         #  4. Authentication support (anonymous should be at the bottom...)
         #  5. Authentication that is not plain text.
-        usort($available, function (MechanismInterface $mechA, MechanismInterface $mechB) {
-            $strengthA = $mechA->securityStrength();
-            $strengthB = $mechB->securityStrength();
+        usort(
+            $available,
+            static function (MechanismInterface $a, MechanismInterface $b): int {
+                $sa = $a->securityStrength();
+                $sb = $b->securityStrength();
 
-            # We need to invert the boolean checks, expect for plain text (logic is already inverted).
-            return (int)!$strengthA->supportsPrivacy() <=> (int)!$strengthB->supportsPrivacy()
-                ?: (int)!$strengthA->supportsIntegrity() <=> (int)!$strengthB->supportsIntegrity()
-                ?: (int)$strengthA->maxKeySize() <=> (int)$strengthB->maxKeySize()
-                ?: (int)!$strengthA->supportsAuth() <=> (int)!$strengthB->supportsAuth()
-                ?: (int)$strengthA->isPlainTextAuth() <=> (int)$strengthB->isPlainTextAuth();
-        });
+                # We need to invert the boolean checks, expect for plain text (logic is already inverted).
+                return (int) !$sa->supportsPrivacy() <=> (int) !$sb->supportsPrivacy()
+                    ?: (int) !$sa->supportsIntegrity() <=> (int) !$sb->supportsIntegrity()
+                    ?: $sa->maxKeySize() <=> $sb->maxKeySize()
+                    ?: (int) !$sa->supportsAuth() <=> (int) !$sb->supportsAuth()
+                    ?: (int) $sa->isPlainTextAuth() <=> (int) $sb->isPlainTextAuth();
+            },
+        );
         $first = array_shift($available);
 
         if (!$first instanceof MechanismInterface) {
@@ -91,13 +96,17 @@ class MechanismSelector
     }
 
     /**
-     * @param string[] $choices
-     * @param array $options
+     * @param MechanismName[] $choices
+     * @param array<string, mixed> $options
+     *
      * @return MechanismInterface[]
+     *
      * @throws SaslException
      */
-    protected function getAvailableMechsFromChoices(array $choices, array $options): array
-    {
+    private function getAvailableMechsFromChoices(
+        array $choices,
+        array $options,
+    ): array {
         $available = $this->filterFromChoices($choices);
         if (count($available) === 0) {
             $this->throwException($choices);
@@ -112,19 +121,20 @@ class MechanismSelector
     }
 
     /**
-     * @param string[] $choices
+     * @param MechanismName[] $choices
+     *
      * @return MechanismInterface[]
      */
-    protected function filterFromChoices(array $choices): array
+    private function filterFromChoices(array $choices): array
     {
         if (count($choices) === 0) {
             return $this->mechanisms;
         }
         $filtered = [];
 
-        foreach ($this->mechanisms as $choice) {
-            if (in_array($choice->getName(), $choices, true)) {
-                $filtered[] = $choice;
+        foreach ($this->mechanisms as $mech) {
+            if (in_array($mech->getName(), $choices, true)) {
+                $filtered[] = $mech;
             }
         }
 
@@ -133,45 +143,54 @@ class MechanismSelector
 
     /**
      * @param MechanismInterface[] $available
-     * @param array $options
+     * @param array<string, mixed> $options
+     *
      * @return MechanismInterface[]
      */
-    protected function filterOptions(array $available, array $options): array
-    {
-        $useIntegrity = $options['use_integrity'] ?? false;
-        $usePrivacy = $options['use_privacy'] ?? false;
+    private function filterOptions(
+        array $available,
+        array $options,
+    ): array {
+        $useIntegrity = (bool) ($options['use_integrity'] ?? false);
+        $usePrivacy = (bool) ($options['use_privacy'] ?? false);
 
         # Don't need to worry whether it supports integrity or privacy...
-        if ($usePrivacy === false && $useIntegrity === false) {
+        if (!$useIntegrity && !$usePrivacy) {
             return $available;
         }
         $supportsInt = [];
         $supportsPriv = [];
 
         # Filter to those only those supporting integrity...
-        if ($useIntegrity === true) {
-            $supportsInt = array_filter($available, function (MechanismInterface $mech) use ($useIntegrity) {
-                return $mech->securityStrength()->supportsIntegrity() === $useIntegrity;
-            });
+        if ($useIntegrity) {
+            $supportsInt = array_filter(
+                $available,
+                static fn (MechanismInterface $mech): bool => $mech->securityStrength()->supportsIntegrity(),
+            );
         }
         # Filter to those only supporting privacy...
-        if ($usePrivacy === true) {
-            $supportsPriv = array_filter($available, function (MechanismInterface $mech) use ($usePrivacy) {
-                return $mech->securityStrength()->supportsPrivacy() === $usePrivacy;
-            });
+        if ($usePrivacy) {
+            $supportsPriv = array_filter(
+                $available,
+                static fn (MechanismInterface $mech): bool => $mech->securityStrength()->supportsPrivacy(),
+            );
         }
 
         return array_unique(array_merge($supportsInt, $supportsPriv), SORT_REGULAR);
     }
 
     /**
+     * @param MechanismName[] $choices
+     *
      * @throws SaslException
      */
-    protected function throwException(array $choices = []): void
+    private function throwException(array $choices = []): void
     {
+        $names = array_map(static fn (MechanismName $name): string => $name->value, $choices);
+
         throw new SaslException(sprintf(
             'No supported SASL mechanisms could be found from the provided choices: %s',
-            implode(', ', $choices)
+            implode(', ', $names),
         ));
     }
 }

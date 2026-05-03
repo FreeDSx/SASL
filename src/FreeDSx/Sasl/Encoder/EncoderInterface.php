@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -27,12 +29,18 @@ interface EncoderInterface
      *
      * @throws SaslEncodingException
      */
-    public function encode(Message $message, SaslContext $context): string;
+    public function encode(
+        Message $message,
+        SaslContext $context,
+    ): string;
 
     /**
      * Decode a string to a message object. Optionally pass the type of message to be decoded.
      *
      * @throws SaslEncodingException
      */
-    public function decode(string $data, SaslContext $context): Message;
+    public function decode(
+        string $data,
+        SaslContext $context,
+    ): Message;
 }

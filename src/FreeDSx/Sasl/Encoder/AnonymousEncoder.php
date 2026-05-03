@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -19,28 +21,26 @@ use FreeDSx\Sasl\SaslContext;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class AnonymousEncoder implements EncoderInterface
+final readonly class AnonymousEncoder implements EncoderInterface
 {
-    /**
-     * {@inheritDoc}
-     */
-    public function encode(Message $message, SaslContext $context): string
-    {
+    public function encode(
+        Message $message,
+        SaslContext $context,
+    ): string {
         if ($message->has('trace')) {
-            return $message->get('trace');
+            return (string) $message->get('trace');
         }
 
         return '';
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    public function decode(string $data, SaslContext $context): Message
-    {
+    public function decode(
+        string $data,
+        SaslContext $context,
+    ): Message {
         $message = new Message();
 
-        if($data !== '') {
+        if ($data !== '') {
             $message->set('trace', $data);
         }
 

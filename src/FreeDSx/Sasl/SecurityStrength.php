@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -16,45 +18,15 @@ namespace FreeDSx\Sasl;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class SecurityStrength
+final readonly class SecurityStrength
 {
-    /**
-     * @var bool
-     */
-    protected $supportsIntegrity;
-
-    /**
-     * @var bool
-     */
-    protected $supportsPrivacy;
-
-    /**
-     * @var bool
-     */
-    protected $supportsAuth;
-
-    /**
-     * @var bool
-     */
-    protected $isPlainTextAuth;
-
-    /**
-     * @var int
-     */
-    protected $maxKeySize;
-
     public function __construct(
-        bool $supportsIntegrity,
-        bool $supportsPrivacy,
-        bool $supportsAuth,
-        bool $isPlainTextAuth,
-        int $maxKeySize
+        private readonly bool $supportsIntegrity,
+        private readonly bool $supportsPrivacy,
+        private readonly bool $supportsAuth,
+        private readonly bool $isPlainTextAuth,
+        private readonly int $maxKeySize,
     ) {
-        $this->supportsIntegrity = $supportsIntegrity;
-        $this->supportsPrivacy = $supportsPrivacy;
-        $this->supportsAuth = $supportsAuth;
-        $this->isPlainTextAuth = $isPlainTextAuth;
-        $this->maxKeySize = $maxKeySize;
     }
 
     public function supportsIntegrity(): bool
