@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -21,17 +23,11 @@ use FreeDSx\Sasl\SaslContext;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class PlainChallenge implements ChallengeInterface
+final readonly class PlainChallenge implements ChallengeInterface
 {
-    /**
-     * @var PlainEncoder
-     */
-    protected $encoder;
+    private readonly PlainEncoder $encoder;
 
-    /**
-     * @var SaslContext
-     */
-    protected $context;
+    private readonly SaslContext $context;
 
     public function __construct(bool $isServerMode = false)
     {
@@ -40,26 +36,30 @@ class PlainChallenge implements ChallengeInterface
         $this->context->setIsServerMode($isServerMode);
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    public function challenge(?string $received = null, array $options = []): SaslContext
-    {
-        $received = $received === null ? null : $this->encoder->decode($received, $this->context);
+    public function challenge(
+        ?string $received = null,
+        array $options = [],
+    ): SaslContext {
+        $message = $received === null ? null : $this->encoder->decode($received, $this->context);
 
-        if ($this->context->isServerMode()) {
-            return $this->serverProcess($received, $options);
-        } else {
-            return $this->clientProcess($options);
-        }
+        return $this->context->isServerMode()
+            ? $this->serverProcess($message, $options)
+            : $this->clientProcess($options);
     }
 
-    protected function serverProcess(?Message $message, array $options): SaslContext
-    {
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @throws SaslException
+     */
+    private function serverProcess(
+        ?Message $message,
+        array $options,
+    ): SaslContext {
         if ($message === null) {
             return $this->context;
         }
-        if (!(isset($options['validate']) && is_callable($options['validate']))) {
+        if (!isset($options['validate']) || !is_callable($options['validate'])) {
             throw new SaslException('You must pass a callable validate option to the plain mechanism in server mode.');
         }
         $authzId = $message->get('authzid');
@@ -72,7 +72,12 @@ class PlainChallenge implements ChallengeInterface
         return $this->context;
     }
 
-    protected function clientProcess(array $options): SaslContext
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @throws SaslException
+     */
+    private function clientProcess(array $options): SaslContext
     {
         if (!isset($options['username'])) {
             throw new SaslException('You must supply a username for the PLAIN mechanism.');

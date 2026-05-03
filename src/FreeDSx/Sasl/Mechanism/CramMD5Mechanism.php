@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -22,43 +24,29 @@ use FreeDSx\Sasl\SecurityStrength;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class CramMD5Mechanism implements MechanismInterface
+final readonly class CramMD5Mechanism implements MechanismInterface
 {
-    public const NAME = 'CRAM-MD5';
-
-    /**
-     * {@inheritDoc}
-     */
-    public function getName(): string
+    public function getName(): MechanismName
     {
-        return self::NAME;
+        return MechanismName::CRAM_MD5;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function challenge(bool $serverMode = false): ChallengeInterface
     {
         return new CramMD5Challenge($serverMode);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function securityStrength(): SecurityStrength
     {
         return new SecurityStrength(
-            false,
-            false,
-            true,
-            false,
-            0
+            supportsIntegrity: false,
+            supportsPrivacy: false,
+            supportsAuth: true,
+            isPlainTextAuth: false,
+            maxKeySize: 0,
         );
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function securityLayer(): SecurityLayerInterface
     {
         throw new SaslException('CRAM-MD5 does not support a security layer.');

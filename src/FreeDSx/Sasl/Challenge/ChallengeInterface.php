@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -29,7 +31,13 @@ interface ChallengeInterface
      *
      * The SaslContext returned indicates various aspects of the state of the challenge, including the response.
      *
+     * @param string|null $received the last message received, or null if none
+     * @param array<string, mixed> $options options for generating the next message
+     *
      * @throws SaslException
      */
-    public function challenge(?string $received = null, array $options = []): SaslContext;
+    public function challenge(
+        ?string $received = null,
+        array $options = [],
+    ): SaslContext;
 }

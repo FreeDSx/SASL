@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -22,45 +24,31 @@ use FreeDSx\Sasl\SecurityStrength;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class PlainMechanism implements MechanismInterface
+final readonly class PlainMechanism implements MechanismInterface
 {
-    public const NAME = 'PLAIN';
-
-    /**
-     * {@inheritDoc}
-     */
-    public function getName(): string
+    public function getName(): MechanismName
     {
-        return self::NAME;
+        return MechanismName::PLAIN;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function challenge(bool $serverMode = false): ChallengeInterface
     {
         return new PlainChallenge($serverMode);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function securityStrength(): SecurityStrength
     {
         return new SecurityStrength(
-            false,
-            false,
-            true,
-            true,
-            0
+            supportsIntegrity: false,
+            supportsPrivacy: false,
+            supportsAuth: true,
+            isPlainTextAuth: true,
+            maxKeySize: 0,
         );
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function securityLayer(): SecurityLayerInterface
     {
-       throw new SaslException('The PLAIN mechanism does not support a security layer.');
+        throw new SaslException('The PLAIN mechanism does not support a security layer.');
     }
 }

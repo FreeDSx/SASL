@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -35,10 +37,11 @@ trait NonceTrait
         try {
             return base64_encode(random_bytes($byteLength));
         } catch (Exception $e) {
-            throw new SaslException(sprintf(
-                'Unable to generate the nonce: %s',
-                $e->getMessage()
-            ), $e->getCode(), $e);
+            throw new SaslException(
+                sprintf('Unable to generate the nonce: %s', $e->getMessage()),
+                $e->getCode(),
+                $e,
+            );
         }
     }
 }

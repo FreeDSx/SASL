@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -22,43 +24,29 @@ use FreeDSx\Sasl\SecurityStrength;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class AnonymousMechanism implements MechanismInterface
+final readonly class AnonymousMechanism implements MechanismInterface
 {
-    public const NAME = 'ANONYMOUS';
-
-    /**
-     * {@inheritDoc}
-     */
-    public function getName(): string
+    public function getName(): MechanismName
     {
-        return self::NAME;
+        return MechanismName::ANONYMOUS;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function challenge(bool $serverMode = false): ChallengeInterface
     {
         return new AnonymousChallenge($serverMode);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function securityStrength(): SecurityStrength
     {
         return new SecurityStrength(
-            false,
-            false,
-            false,
-            false,
-            0
+            supportsIntegrity: false,
+            supportsPrivacy: false,
+            supportsAuth: false,
+            isPlainTextAuth: false,
+            maxKeySize: 0,
         );
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function securityLayer(): SecurityLayerInterface
     {
         throw new SaslException('The ANONYMOUS mechanism does not support a security layer.');

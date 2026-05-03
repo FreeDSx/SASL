@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -20,17 +22,11 @@ use FreeDSx\Sasl\SaslContext;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class AnonymousChallenge implements ChallengeInterface
+final readonly class AnonymousChallenge implements ChallengeInterface
 {
-    /**
-     * @var SaslContext
-     */
-    protected $context;
+    private readonly SaslContext $context;
 
-    /**
-     * @var AnonymousEncoder
-     */
-    protected $encoder;
+    private readonly AnonymousEncoder $encoder;
 
     public function __construct(bool $isServerMode = false)
     {
@@ -39,11 +35,10 @@ class AnonymousChallenge implements ChallengeInterface
         $this->context->setIsServerMode($isServerMode);
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    public function challenge(?string $received = null, array $options = []): SaslContext
-    {
+    public function challenge(
+        ?string $received = null,
+        array $options = [],
+    ): SaslContext {
         if ($this->context->isServerMode()) {
             $this->processServer($received);
         } else {
@@ -53,25 +48,27 @@ class AnonymousChallenge implements ChallengeInterface
         return $this->context;
     }
 
-    protected function processServer(?string $received): void
+    private function processServer(?string $received): void
     {
         if ($received === null) {
             return;
         }
-        $received = $this->encoder->decode($received, $this->context);
+        $message = $this->encoder->decode($received, $this->context);
 
         $this->context->setIsComplete(true);
         $this->context->setIsAuthenticated(true);
 
-        if ($received->has('trace')) {
-            $this->context->set('trace', $received->get('trace'));
+        if ($message->has('trace')) {
+            $this->context->set('trace', $message->get('trace'));
         }
     }
 
-    protected function processClient(array $options): void
+    /**
+     * @param array<string, mixed> $options
+     */
+    private function processClient(array $options): void
     {
         $data = [];
-
         if (isset($options['username']) || isset($options['trace'])) {
             $data['trace'] = $options['trace'] ?? $options['username'];
         }

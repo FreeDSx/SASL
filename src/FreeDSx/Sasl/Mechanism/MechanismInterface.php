@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -25,7 +27,7 @@ interface MechanismInterface
     /**
      * Retrieve the registered name for this SASL mechanism.
      */
-    public function getName(): string;
+    public function getName(): MechanismName;
 
     /**
      * Describes various security related aspects of the mechanism.

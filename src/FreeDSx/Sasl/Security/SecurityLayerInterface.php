@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -27,12 +29,18 @@ interface SecurityLayerInterface
      *
      * @throws SaslException
      */
-    public function wrap(string $data, SaslContext $context): string;
+    public function wrap(
+        string $data,
+        SaslContext $context,
+    ): string;
 
     /**
      * Unwraps / uninstalls the security layer for a specific SASL context from a data stream.
      *
      * @throws SaslException
      */
-    public function unwrap(string $data, SaslContext $context): string;
+    public function unwrap(
+        string $data,
+        SaslContext $context,
+    ): string;
 }

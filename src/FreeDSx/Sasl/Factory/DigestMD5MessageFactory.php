@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -11,26 +13,23 @@
 
 namespace FreeDSx\Sasl\Factory;
 
-use Exception;
 use FreeDSx\Sasl\Exception\SaslException;
 use FreeDSx\Sasl\Message;
+use FreeDSx\Sasl\Security\DigestMD5Cipher;
 
 /**
  * The DIGEST-MD5 Message Factory.
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class DigestMD5MessageFactory implements MessageFactoryInterface
+final readonly class DigestMD5MessageFactory implements MessageFactoryInterface
 {
     use NonceTrait;
 
-    public const MESSAGE_CLIENT_RESPONSE = 1;
-
-    public const MESSAGE_SERVER_CHALLENGE = 2;
-
-    public const MESSAGE_SERVER_RESPONSE = 3;
-
-    protected const CIPHER_LIST = [
+    /**
+     * Maps the supported OpenSSL cipher names to the SASL cipher wire names.
+     */
+    private const OPENSSL_TO_SASL_CIPHERS = [
         'rc4' => 'rc4',
         'des-ede-cbc' => 'des',
         'des-ede3-cbc' => '3des',
@@ -45,53 +44,53 @@ class DigestMD5MessageFactory implements MessageFactoryInterface
      *
      * Byte length represented here. Bumping it up quite a bit from the recommendation. Can be controlled via an option.
      */
-    protected const NONCE_SIZE = 32;
+    private const NONCE_SIZE = 32;
 
-    /**
-     * @var bool
-     */
-    protected $hasOpenSsl;
-
-    public function __construct()
-    {
-        $this->hasOpenSsl = extension_loaded('openssl');
+    public function create(
+        DigestMD5MessageType $type,
+        array $options = [],
+        ?Message $received = null,
+    ): Message {
+        return match (true) {
+            $type === DigestMD5MessageType::CLIENT_RESPONSE && $received !== null
+                => $this->generateClientResponse($options, $received),
+            $type === DigestMD5MessageType::SERVER_RESPONSE
+                => $this->generateServerResponse($options),
+            $type === DigestMD5MessageType::SERVER_CHALLENGE
+                => $this->generateServerChallenge($options),
+            default => throw new SaslException(
+                'Unable to generate message. Unrecognized message type / received message combination.',
+            ),
+        };
     }
 
     /**
-     * {@inheritDoc}
+     * @param array<string, mixed> $options
+     *
+     * @throws SaslException
      */
-    public function create(int $type, array $options = [], ?Message $received = null): Message
-    {
-        if ($type === self::MESSAGE_CLIENT_RESPONSE && $received !== null) {
-            return $this->generateClientResponse($options, $received);
-        } elseif ($type === self::MESSAGE_SERVER_RESPONSE) {
-            return $this->generateServerResponse($options);
-        } elseif ($type === self::MESSAGE_SERVER_CHALLENGE) {
-            return $this->generateServerChallenge($options);
-        } else {
-            throw new SaslException(
-                'Unable to generate message. Unrecognized message type / received message combination.'
-            );
-        }
-    }
-
-    protected function generateServerChallenge(array $options): Message
+    private function generateServerChallenge(array $options): Message
     {
         $challenge = new Message();
         $challenge->set('algorithm', 'md5-sess');
-        $challenge->set('nonce', $options['nonce'] ?? $this->generateNonce($options['nonce_size'] ?? self::NONCE_SIZE));
+        $challenge->set('nonce', $options['nonce'] ?? $this->generateNonce((int) ($options['nonce_size'] ?? self::NONCE_SIZE)));
         $challenge->set('qop', $this->generateAvailableQops($options));
         $challenge->set('realm', $options['realm'] ?? $_SERVER['USERDOMAIN'] ?? gethostname());
         $challenge->set('maxbuf', $options['maxbuf'] ?? '65536');
         $challenge->set('charset', 'utf-8');
-        if (in_array('auth-conf', $challenge->get('qop'))) {
+        if (in_array('auth-conf', (array) $challenge->get('qop'), true)) {
             $challenge->set('cipher', $this->getAvailableCiphers($options));
         }
 
         return $challenge;
     }
 
-    protected function generateServerResponse(array $options): Message
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @throws SaslException
+     */
+    private function generateServerResponse(array $options): Message
     {
         $rspAuth = $options['rspauth'] ?? null;
         if ($rspAuth === null) {
@@ -102,22 +101,26 @@ class DigestMD5MessageFactory implements MessageFactoryInterface
     }
 
     /**
+     * @param array<string, mixed> $options
+     *
      * @throws SaslException
      */
-    protected function generateClientResponse(array $options, Message $challenge): Message
-    {
+    private function generateClientResponse(
+        array $options,
+        Message $challenge,
+    ): Message {
         $response = new Message();
         $qop = isset($options['qop']) ? (string) $options['qop'] : null;
 
         $response->set('algorithm', 'md5-sess');
         $response->set('nonce', $challenge->get('nonce'));
-        $response->set('cnonce', $options['cnonce'] ?? $this->generateNonce($options['nonce_size'] ?? self::NONCE_SIZE));
+        $response->set('cnonce', $options['cnonce'] ?? $this->generateNonce((int) ($options['nonce_size'] ?? self::NONCE_SIZE)));
         $response->set('nc', $options['nc'] ?? 1);
         $response->set('qop', $this->selectQopFromChallenge($challenge, $qop));
         $response->set('username', $options['username'] ?? $this->getCurrentUser());
         $response->set('realm', $options['realm'] ?? $this->getRealmFromChallenge($challenge));
-        $response->set('digest-uri', $options['digest-uri'] ?? $this->getDigestUri($options, $response, $challenge));
-        if ($response->get('qop') === 'auth-conf' && !$response->get('cipher')) {
+        $response->set('digest-uri', $options['digest-uri'] ?? $this->getDigestUri($options, $response));
+        if ($response->get('qop') === 'auth-conf' && $response->get('cipher') === null) {
             $this->setCipherForChallenge($options, $response, $challenge);
         }
 
@@ -125,10 +128,14 @@ class DigestMD5MessageFactory implements MessageFactoryInterface
     }
 
     /**
+     * @param array<string, mixed> $options
+     *
      * @throws SaslException
      */
-    protected function getDigestUri(array $options, Message $response, Message $challenge): string
-    {
+    private function getDigestUri(
+        array $options,
+        Message $response,
+    ): string {
         if (!isset($options['service'])) {
             throw new SaslException('If you do not supply a digest-uri, you must specify a service.');
         }
@@ -136,18 +143,23 @@ class DigestMD5MessageFactory implements MessageFactoryInterface
         return sprintf(
             '%s/%s',
             $options['service'],
-            $response->get('realm')
+            $response->get('realm'),
         );
     }
 
-    protected function generateAvailableQops(array $options): array
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @return string[]
+     */
+    private function generateAvailableQops(array $options): array
     {
         $qop = ['auth'];
 
-        if (isset($options['use_integrity']) && $options['use_integrity'] === true) {
+        if (($options['use_integrity'] ?? false) === true) {
             $qop[] = 'auth-int';
         }
-        if (isset($options['use_privacy']) && $options['use_privacy'] === true) {
+        if (($options['use_privacy'] ?? false) === true) {
             $qop[] = 'auth-conf';
         }
 
@@ -157,8 +169,10 @@ class DigestMD5MessageFactory implements MessageFactoryInterface
     /**
      * @throws SaslException
      */
-    protected function selectQopFromChallenge(Message $challenge, ?string $qop): string
-    {
+    private function selectQopFromChallenge(
+        Message $challenge,
+        ?string $qop,
+    ): string {
         $available = (array) ($challenge->get('qop') ?? []);
         /* Per the RFC: This directive is optional; if not present it defaults to "auth". */
         if (count($available) === 0) {
@@ -174,20 +188,28 @@ class DigestMD5MessageFactory implements MessageFactoryInterface
 
         throw new SaslException(sprintf(
             'None of the qop values are recognized, or the one you selected is not available. Available methods are: %s',
-            implode($available)
+            implode(', ', $available),
         ));
     }
 
-    protected function getAvailableCiphers(array $options): array
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @return string[]
+     *
+     * @throws SaslException
+     */
+    private function getAvailableCiphers(array $options): array
     {
-        $cipherList = self::CIPHER_LIST;
+        $cipherList = self::OPENSSL_TO_SASL_CIPHERS;
 
         # If specific cipher(s) are already wanted, filter the list...
         if (isset($options['cipher'])) {
             $wanted = (array) $options['cipher'];
-            $cipherList = array_filter($cipherList, function ($name) use ($wanted) {
-                return in_array($name, $wanted, true);
-            });
+            $cipherList = array_filter(
+                $cipherList,
+                static fn (string $name): bool => in_array($name, $wanted, true),
+            );
         }
 
         # Now filter it based on what ciphers actually show as available in OpenSSL...
@@ -198,7 +220,7 @@ class DigestMD5MessageFactory implements MessageFactoryInterface
             }
         }
 
-        if (empty($cipherList)) {
+        if (count($cipherList) === 0) {
             throw new SaslException('There are no available ciphers for auth-conf.');
         }
 
@@ -206,16 +228,29 @@ class DigestMD5MessageFactory implements MessageFactoryInterface
     }
 
     /**
+     * @param array<string, mixed> $options
+     *
      * @throws SaslException
      */
-    protected function setCipherForChallenge(array $options, Message $response, Message $challenge): void
-    {
+    private function setCipherForChallenge(
+        array $options,
+        Message $response,
+        Message $challenge,
+    ): void {
         if (!$challenge->has('cipher')) {
             throw new SaslException('The client requested auth-conf, but the challenge contains no ciphers.');
         }
-        $ciphers = $challenge->get('cipher');
+        $ciphers = (array) $challenge->get('cipher');
         # If we are requesting a specific cipher, then only check that one...
-        $toCheck = isset($options['cipher']) ? (array) $options['cipher'] : ['3des', 'des', 'rc4', 'rc4-56', 'rc4-40', ];
+        $toCheck = isset($options['cipher'])
+            ? (array) $options['cipher']
+            : array_map(static fn (DigestMD5Cipher $c): string => $c->value, [
+                DigestMD5Cipher::THREE_DES,
+                DigestMD5Cipher::DES,
+                DigestMD5Cipher::RC4,
+                DigestMD5Cipher::RC4_56,
+                DigestMD5Cipher::RC4_40,
+            ]);
 
         $selected = null;
         foreach ($toCheck as $selection) {
@@ -227,19 +262,23 @@ class DigestMD5MessageFactory implements MessageFactoryInterface
         if ($selected === null) {
             throw new SaslException(sprintf(
                 'No recognized ciphers were offered in the challenge: %s',
-                implode(', ', $ciphers)
+                implode(', ', $ciphers),
             ));
         }
 
         $response->set('cipher', $selected);
     }
 
-    protected function getCurrentUser(): string
+    /**
+     * @throws SaslException
+     */
+    private function getCurrentUser(): string
     {
         if (isset($_SERVER['USERNAME'])) {
-            return $_SERVER['USERNAME'];
-        } elseif (isset($_SERVER['USER'])) {
-            return $_SERVER['USER'];
+            return (string) $_SERVER['USERNAME'];
+        }
+        if (isset($_SERVER['USER'])) {
+            return (string) $_SERVER['USER'];
         }
 
         throw new SaslException('Unable to determine a username for the response. You must supply a username.');
@@ -247,8 +286,10 @@ class DigestMD5MessageFactory implements MessageFactoryInterface
 
     /**
      * Only populate if one realm is provided in the challenge. If more than one exists then the client must supply this.
+     *
+     * @throws SaslException
      */
-    protected function getRealmFromChallenge(Message $challenge): string
+    private function getRealmFromChallenge(Message $challenge): string
     {
         if (!$challenge->has('realm')) {
             throw new SaslException('Unable to determine a realm for the response.');
@@ -256,6 +297,6 @@ class DigestMD5MessageFactory implements MessageFactoryInterface
         $realms = (array) $challenge->get('realm');
         $selected = array_pop($realms);
 
-        return $selected;
+        return (string) $selected;
     }
 }

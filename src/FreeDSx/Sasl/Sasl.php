@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -16,6 +18,7 @@ use FreeDSx\Sasl\Mechanism\AnonymousMechanism;
 use FreeDSx\Sasl\Mechanism\CramMD5Mechanism;
 use FreeDSx\Sasl\Mechanism\DigestMD5Mechanism;
 use FreeDSx\Sasl\Mechanism\MechanismInterface;
+use FreeDSx\Sasl\Mechanism\MechanismName;
 use FreeDSx\Sasl\Mechanism\PlainMechanism;
 use FreeDSx\Sasl\Mechanism\ScramMechanism;
 
@@ -24,35 +27,40 @@ use FreeDSx\Sasl\Mechanism\ScramMechanism;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class Sasl
+final class Sasl
 {
     /**
-     * @var MechanismInterface[]
+     * @var array<string, MechanismInterface> keyed by MechanismName->value
      */
-    protected $mechanisms = [];
+    private array $mechanisms = [];
 
     /**
-     * @var array<string, mixed>
+     * @var array{supported: MechanismName[]}
      */
-    protected $options = [
-        'supported' => []
-    ];
+    private array $options;
 
+    /**
+     * @param array{supported?: MechanismName[]} $options
+     */
     public function __construct(array $options = [])
     {
-        $this->options = $options + $this->options;
+        $this->options = $options + ['supported' => []];
         $this->initMechs();
     }
 
     /**
      * Get a mechanism object by its name.
+     *
+     * @throws SaslException
      */
-    public function get(string $mechanism): MechanismInterface
+    public function get(MechanismName $mechanism): MechanismInterface
     {
-        $mech = $this->mechanisms[$mechanism] ?? null;
-
+        $mech = $this->mechanisms[$mechanism->value] ?? null;
         if ($mech === null) {
-            throw new SaslException('The mechanism "%s" is not supported.');
+            throw new SaslException(sprintf(
+                'The mechanism "%s" is not supported.',
+                $mechanism->value,
+            ));
         }
 
         return $mech;
@@ -61,33 +69,27 @@ class Sasl
     /**
      * Whether or not the mechanism is supported.
      */
-    public function supports(string $mechanism): bool
+    public function supports(MechanismName $mechanism): bool
     {
-        return isset($this->mechanisms()[$mechanism]);
+        return isset($this->mechanisms[$mechanism->value]);
     }
 
     /**
      * Add a mechanism object.
-     *
-     * @return Sasl
      */
     public function add(MechanismInterface $mechanism): self
     {
-        $this->mechanisms[$mechanism->getName()] = $mechanism;
+        $this->mechanisms[$mechanism->getName()->value] = $mechanism;
 
         return $this;
     }
 
     /**
      * Remove a mechanism by its name.
-     *
-     * @return Sasl
      */
-    public function remove(string $mechanism): self
+    public function remove(MechanismName $mechanism): self
     {
-        if (isset($this->mechanisms[$mechanism])) {
-            unset($this->mechanisms[$mechanism]);
-        }
+        unset($this->mechanisms[$mechanism->value]);
 
         return $this;
     }
@@ -95,44 +97,53 @@ class Sasl
     /**
      * Given an array of mechanism names, and optional options, select the best supported mechanism available.
      *
-     * @param string[] $choices array of mechanisms by their name
-     * @param array $options array of options (ie. ['use_integrity' => true])
-     * @return MechanismInterface the mechanism selected.
-     * @throws SaslException if no supported mechanism could be found.
+     * @param MechanismName[] $choices array of mechanisms by their name
+     * @param array<string, mixed> $options array of options (ie. ['use_integrity' => true])
+     *
+     * @throws SaslException
      */
-    public function select(array $choices = [], array $options = []): MechanismInterface
-    {
-        $selector = new MechanismSelector($this->mechanisms());
-
-        return $selector->select($choices, $options);
+    public function select(
+        array $choices = [],
+        array $options = [],
+    ): MechanismInterface {
+        return (new MechanismSelector($this->mechanisms))
+            ->select($choices, $options);
     }
 
     /**
-     * @return MechanismInterface[]
+     * @return array<string, MechanismInterface>
      */
     public function mechanisms(): array
     {
         return $this->mechanisms;
     }
 
-    protected function initMechs(): void
+    private function initMechs(): void
     {
         $this->mechanisms = [
-            DigestMD5Mechanism::NAME => new DigestMD5Mechanism(),
-            CramMD5Mechanism::NAME => new CramMD5Mechanism(),
-            PlainMechanism::NAME => new PlainMechanism(),
-            AnonymousMechanism::NAME => new AnonymousMechanism(),
+            MechanismName::DIGEST_MD5->value => new DigestMD5Mechanism(),
+            MechanismName::CRAM_MD5->value => new CramMD5Mechanism(),
+            MechanismName::PLAIN->value => new PlainMechanism(),
+            MechanismName::ANONYMOUS->value => new AnonymousMechanism(),
         ];
 
-        foreach (ScramMechanism::VARIANTS as $variant) {
-            $this->mechanisms[$variant] = new ScramMechanism($variant);
+        foreach (MechanismName::cases() as $case) {
+            if ($case->isScram()) {
+                $this->mechanisms[$case->value] = new ScramMechanism($case);
+            }
         }
 
-        if (is_array($this->options['supported']) && !empty($this->options['supported'])) {
-            foreach (array_keys($this->mechanisms) as $mechName) {
-                if (!in_array($mechName, $this->options['supported'], true)) {
-                    unset($this->mechanisms[$mechName]);
-                }
+        if (count($this->options['supported']) === 0) {
+            return;
+        }
+
+        $allowed = array_map(
+            static fn (MechanismName $name): string => $name->value,
+            $this->options['supported'],
+        );
+        foreach (array_keys($this->mechanisms) as $key) {
+            if (!in_array($key, $allowed, true)) {
+                unset($this->mechanisms[$key]);
             }
         }
     }

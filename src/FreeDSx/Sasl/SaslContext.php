@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -16,94 +18,54 @@ namespace FreeDSx\Sasl;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class SaslContext
+final class SaslContext
 {
-    /**
-     * @var bool
-     */
-    protected $isAuthenticated = false;
+    private bool $isAuthenticated = false;
+
+    private bool $isComplete = false;
+
+    private bool $hasSecurityLayer = false;
+
+    private bool $isServerMode = false;
+
+    private ?string $response = null;
 
     /**
-     * @var bool
+     * @param array<string, mixed> $data
      */
-    protected $isComplete = false;
-
-    /**
-     * @var bool
-     */
-    protected $hasSecurityLayer = false;
-
-    /**
-     * @var bool
-     */
-    protected $isServerMode = false;
-
-    /**
-     * @var array
-     */
-    protected $data = [];
-
-    /**
-     * @var string|null
-     */
-    protected $response;
-
-    public function __construct(array $data = [])
+    public function __construct(private array $data = [])
     {
-        $this->data = $data;
     }
 
-    /**
-     * @param bool $isComplete
-     * @return $this
-     */
-    public function setIsComplete(bool $isComplete)
+    public function setIsComplete(bool $isComplete): self
     {
         $this->isComplete = $isComplete;
 
         return $this;
     }
 
-    /**
-     * Whether or not the challenge sequence is complete.
-     */
     public function isComplete(): bool
     {
         return $this->isComplete;
     }
 
-    /**
-     * @param bool $isServerMode
-     * @return $this
-     */
-    public function setIsServerMode(bool $isServerMode)
+    public function setIsServerMode(bool $isServerMode): self
     {
         $this->isServerMode = $isServerMode;
 
         return $this;
     }
 
-    /**
-     * Whether or not we are in the context of server mode for the exchange.
-     */
     public function isServerMode(): bool
     {
         return $this->isServerMode;
     }
 
-    /**
-     * Whether or not the message exchange has resulted is being successfully authenticated.
-     */
     public function isAuthenticated(): bool
     {
         return $this->isAuthenticated;
     }
 
-    /**
-     * Set whether or not the current context has authenticated.
-     *
-     * @return $this
-     */
     public function setIsAuthenticated(bool $isAuthenticated): self
     {
         $this->isAuthenticated = $isAuthenticated;
@@ -111,17 +73,11 @@ class SaslContext
         return $this;
     }
 
-    /**
-     * Whether or not a security layer was negotiated as part of the message exchange.
-     */
     public function hasSecurityLayer(): bool
     {
         return $this->hasSecurityLayer;
     }
 
-    /**
-     * Set whether or not the current context has negotiated a security layer.
-     */
     public function setHasSecurityLayer(bool $hasSecurityLayer): self
     {
         $this->hasSecurityLayer = $hasSecurityLayer;
@@ -129,19 +85,12 @@ class SaslContext
         return $this;
     }
 
-    /**
-     * The next response, if any, to send in the challenge.
-     */
     public function getResponse(): ?string
     {
         return $this->response;
     }
 
-    /**
-     * @param string|null $response
-     * @return $this
-     */
-    public function setResponse(?string $response)
+    public function setResponse(?string $response): self
     {
         $this->response = $response;
 
@@ -149,7 +98,7 @@ class SaslContext
     }
 
     /**
-     * Get any mechanism specific data that needs to be stored as part of the message exchange.
+     * @return array<string, mixed>
      */
     public function getData(): array
     {
@@ -157,42 +106,29 @@ class SaslContext
     }
 
     /**
-     * @param array $data
-     * @return $this
+     * @param array<string, mixed> $data
      */
-    public function setData(array $data)
+    public function setData(array $data): self
     {
         $this->data = $data;
 
         return $this;
     }
 
-    /**
-     * Check if a SASL specific data piece exists.
-     */
     public function has(string $key): bool
     {
         return isset($this->data[$key]);
     }
 
-    /**
-     * Get a SASL specific data piece. f
-     *
-     * @return mixed
-     */
-    public function get(string $key)
+    public function get(string $key): mixed
     {
         return $this->data[$key] ?? null;
     }
 
-    /**
-     * Set the value of a SASL specific data piece.
-     *
-     * @param mixed $value
-     * @return $this
-     */
-    public function set(string $key, $value): self
-    {
+    public function set(
+        string $key,
+        mixed $value,
+    ): self {
         $this->data[$key] = $value;
 
         return $this;

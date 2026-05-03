@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -11,30 +13,29 @@
 
 namespace FreeDSx\Sasl;
 
-use Countable, IteratorAggregate;
-use function array_key_exists, count;
+use ArrayIterator;
+use Countable;
+use IteratorAggregate;
+use Traversable;
 
 /**
  * The message object encapsulates options / values for all mechanism messages.
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class Message implements Countable, IteratorAggregate
+/**
+ * @implements IteratorAggregate<string, mixed>
+ */
+final class Message implements Countable, IteratorAggregate
 {
     /**
-     * @var array<string, mixed>
+     * @param array<string, mixed> $data
      */
-    protected $data = [];
-
-    public function __construct(array $data = [])
+    public function __construct(private array $data = [])
     {
-        $this->data = $data;
     }
 
-    /**
-     * @return mixed
-     */
-    public function get(string $name)
+    public function get(string $name): mixed
     {
         return $this->data[$name] ?? null;
     }
@@ -44,12 +45,10 @@ class Message implements Countable, IteratorAggregate
         return array_key_exists($name, $this->data);
     }
 
-    /**
-     * @param mixed $value
-     * @return Message
-     */
-    public function set(string $name, $value): self
-    {
+    public function set(
+        string $name,
+        mixed $value,
+    ): self {
         $this->data[$name] = $value;
 
         return $this;
@@ -60,13 +59,19 @@ class Message implements Countable, IteratorAggregate
         return count($this->data);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         return $this->data;
     }
 
-    public function getIterator(): \Traversable
+    /**
+     * @return Traversable<string, mixed>
+     */
+    public function getIterator(): Traversable
     {
-        return new \ArrayIterator($this->data);
+        return new ArrayIterator($this->data);
     }
 }

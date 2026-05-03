@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -14,6 +16,7 @@ namespace FreeDSx\Sasl\Challenge;
 use FreeDSx\Sasl\Encoder\DigestMD5Encoder;
 use FreeDSx\Sasl\Exception\SaslException;
 use FreeDSx\Sasl\Factory\DigestMD5MessageFactory;
+use FreeDSx\Sasl\Factory\DigestMD5MessageType;
 use FreeDSx\Sasl\Mechanism\DigestMD5Mechanism;
 use FreeDSx\Sasl\Message;
 use FreeDSx\Sasl\SaslContext;
@@ -23,37 +26,25 @@ use FreeDSx\Sasl\SaslContext;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class DigestMD5Challenge implements ChallengeInterface
+final class DigestMD5Challenge implements ChallengeInterface
 {
     /**
-     * @var array
+     * @var array<string, mixed>
      */
-    protected const DEFAULTS = [
+    private const DEFAULTS = [
         'use_integrity' => false,
         'use_privacy' => false,
         'service' => 'ldap',
         'nonce_size' => null,
     ];
 
-    /**
-     * @var SaslContext
-     */
-    protected $context;
+    private readonly SaslContext $context;
 
-    /**
-     * @var DigestMD5MessageFactory
-     */
-    protected $factory;
+    private readonly DigestMD5MessageFactory $factory;
 
-    /**
-     * @var DigestMD5Encoder
-     */
-    protected $encoder;
+    private readonly DigestMD5Encoder $encoder;
 
-    /**
-     * @var null|Message
-     */
-    protected $challenge;
+    private ?Message $challenge = null;
 
     public function __construct(bool $isServerMode = false)
     {
@@ -63,29 +54,30 @@ class DigestMD5Challenge implements ChallengeInterface
         $this->context->setIsServerMode($isServerMode);
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    public function challenge(?string $received = null, array $options = []): SaslContext
-    {
+    public function challenge(
+        ?string $received = null,
+        array $options = [],
+    ): SaslContext {
         $options = $options + self::DEFAULTS;
 
-        $received = $received === null ? null : $this->encoder->decode($received, $this->context);
-        if ($this->context->isServerMode()) {
-            $response = $this->generateServerResponse($received, $options);
-        } else {
-            $response = $this->generateClientResponse($received, $options);
-        }
+        $message = $received === null ? null : $this->encoder->decode($received, $this->context);
+        $response = $this->context->isServerMode()
+            ? $this->generateServerResponse($message, $options)
+            : $this->generateClientResponse($message, $options);
         $this->context->setResponse($response);
 
         return $this->context;
     }
 
     /**
+     * @param array<string, mixed> $options
+     *
      * @throws SaslException
      */
-    protected function generateClientResponse(?Message $message, array $options): ?string
-    {
+    private function generateClientResponse(
+        ?Message $message,
+        array $options,
+    ): ?string {
         if ($message === null) {
             return null;
         }
@@ -109,18 +101,23 @@ class DigestMD5Challenge implements ChallengeInterface
         return null;
     }
 
-    protected function generateServerResponse(?Message $received, array $options): ?string
-    {
-        if ($received === null) {
-            $response = $this->generateServerChallenge($options);
-        } else {
-            $response = $this->generateServerVerification($received, $options);
-        }
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @throws SaslException
+     */
+    private function generateServerResponse(
+        ?Message $received,
+        array $options,
+    ): ?string {
+        $response = $received === null
+            ? $this->generateServerChallenge($options)
+            : $this->generateServerVerification($received, $options);
 
         return $response === null ? null : $this->encoder->encode($response, $this->context);
     }
 
-    protected function isClientChallengeNeeded(Message $message): bool
+    private function isClientChallengeNeeded(Message $message): bool
     {
         if ($this->context->isServerMode()) {
             return false;
@@ -130,26 +127,29 @@ class DigestMD5Challenge implements ChallengeInterface
     }
 
     /**
+     * @param array<string, mixed> $options
+     *
      * @throws SaslException
      */
-    protected function createClientResponse(Message $message, array $options): string
-    {
-        $password = $options['password'] ?? '';
+    private function createClientResponse(
+        Message $message,
+        array $options,
+    ): string {
+        $password = (string) ($options['password'] ?? '');
 
-        if ($options['use_privacy']) {
-            $this->context->set('qop', 'auth-conf');
-        } elseif ($options['use_integrity']) {
-            $this->context->set('qop', 'auth-int');
-        } else {
-            $this->context->set('qop', 'auth');
-        }
+        $qop = match (true) {
+            (bool) $options['use_privacy'] => 'auth-conf',
+            (bool) $options['use_integrity'] => 'auth-int',
+            default => 'auth',
+        };
+        $this->context->set('qop', $qop);
 
         $messageOpts = [
             'username' => $options['username'] ?? null,
             'digest-uri' => isset($options['host']) ? ($options['service'] . '/' . $options['host']) : null,
-            'qop' => $this->context->get('qop'),
+            'qop' => $qop,
             'nonce_size' => $options['nonce_size'],
-            'service' => $options['service']
+            'service' => $options['service'],
         ];
         if (isset($options['cnonce'])) {
             $messageOpts['cnonce'] = $options['cnonce'];
@@ -161,13 +161,15 @@ class DigestMD5Challenge implements ChallengeInterface
             $messageOpts['cipher'] = $options['cipher'];
         }
         $response = $this->factory->create(
-            DigestMD5MessageFactory::MESSAGE_CLIENT_RESPONSE, $messageOpts, $message
+            DigestMD5MessageType::CLIENT_RESPONSE,
+            $messageOpts,
+            $message,
         );
         $response->set('response', DigestMD5Mechanism::computeResponse(
             $password,
             $message,
             $response,
-            $this->context->isServerMode()
+            $this->context->isServerMode(),
         ));
 
         # The verification is used to check the response value returned from the server for authentication.
@@ -177,11 +179,11 @@ class DigestMD5Challenge implements ChallengeInterface
                 $password,
                 $message,
                 $response,
-                !$this->context->isServerMode()
-            )
+                !$this->context->isServerMode(),
+            ),
         );
 
-        # Pre-compute some stuff in advance. The A1 / cipher value is used in the security layer.
+        # The A1 / cipher value is used in the security layer.
         if ($options['use_integrity'] || $options['use_privacy']) {
             $this->context->set('a1', hex2bin(DigestMD5Mechanism::computeA1($password, $message, $response)));
             $this->context->set('cipher', $response->get('cipher'));
@@ -190,8 +192,15 @@ class DigestMD5Challenge implements ChallengeInterface
         return $this->encoder->encode($response, $this->context);
     }
 
-    protected function generateServerVerification(Message $received, array $options): ?Message
-    {
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @throws SaslException
+     */
+    private function generateServerVerification(
+        Message $received,
+        array $options,
+    ): ?Message {
         $this->context->setIsComplete(true);
         # The client sent a response without us sending a challenge...
         if ($this->challenge === null) {
@@ -230,33 +239,32 @@ class DigestMD5Challenge implements ChallengeInterface
             return null;
         }
 
-        $response = DigestMD5Mechanism::computeResponse($password, $this->challenge, $received, true);
+        $response = DigestMD5Mechanism::computeResponse((string) $password, $this->challenge, $received, true);
         $this->context->setIsAuthenticated(true);
         if ($qop === 'auth-int' || $qop === 'auth-conf') {
             $this->context->setHasSecurityLayer(true);
-            $this->context->set('a1', hex2bin(DigestMD5Mechanism::computeA1($password, $this->challenge, $received)));
+            $this->context->set('a1', hex2bin(DigestMD5Mechanism::computeA1((string) $password, $this->challenge, $received)));
             $this->context->set('cipher', $received->get('cipher'));
             $this->context->set('seqnumsnt', 0);
             $this->context->set('seqnumrcv', 0);
         }
 
         return $this->factory->create(
-            DigestMD5MessageFactory::MESSAGE_SERVER_RESPONSE,
-            ['rspauth' => $response]
+            DigestMD5MessageType::SERVER_RESPONSE,
+            ['rspauth' => $response],
         );
     }
 
-    protected function generateServerChallenge(array $options): Message
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @throws SaslException
+     */
+    private function generateServerChallenge(array $options): Message
     {
-        $messageOpts = [];
-        if (isset($options['nonce'])) {
-            $messageOpts['nonce'] = $options['nonce'];
-        }
-        if (isset($options['cipher'])) {
-            $messageOpts['cipher'] = $options['cipher'];
-        }
         $this->challenge = $this->factory->create(
-            DigestMD5MessageFactory::MESSAGE_SERVER_CHALLENGE, $options
+            DigestMD5MessageType::SERVER_CHALLENGE,
+            $options,
         );
 
         return $this->challenge;

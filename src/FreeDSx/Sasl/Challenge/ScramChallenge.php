@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -14,6 +16,7 @@ namespace FreeDSx\Sasl\Challenge;
 use FreeDSx\Sasl\Encoder\ScramEncoder;
 use FreeDSx\Sasl\Exception\SaslException;
 use FreeDSx\Sasl\Factory\NonceTrait;
+use FreeDSx\Sasl\Mechanism\HashAlgorithm;
 use FreeDSx\Sasl\Message;
 use FreeDSx\Sasl\SaslContext;
 use FreeDSx\Sasl\SaslPrep;
@@ -21,9 +24,7 @@ use FreeDSx\Sasl\SaslPrep;
 /**
  * The SCRAM challenge / response class (RFC 5802).
  *
- * Handles all SCRAM hash variants (SHA-1, SHA-256, SHA-512, etc.) and both standard
- * and channel-binding (-PLUS) variants. The hash algorithm is provided at construction
- * time using the PHP hash algorithm name (e.g. 'sha256', 'sha1', 'sha3-512').
+ * Handles all SCRAM hash variants and both standard and channel-binding (-PLUS) variants.
  *
  * Client flow (client-first):
  *   1. challenge(null, options)          -> client-first-message
@@ -37,7 +38,7 @@ use FreeDSx\Sasl\SaslPrep;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class ScramChallenge implements ChallengeInterface
+final readonly class ScramChallenge implements ChallengeInterface
 {
     use NonceTrait;
 
@@ -46,75 +47,53 @@ class ScramChallenge implements ChallengeInterface
      */
     private const NONCE_SIZE = 24;
 
-    private const ALGO_SHA1 = 'sha1';
-
-    private const ALGO_SHA224 = 'sha224';
-
-    private const ALGO_SHA256 = 'sha256';
-
-    private const ALGO_SHA384 = 'sha384';
-
-    private const ALGO_SHA512 = 'sha512';
-
-    private const ALGO_SHA3_512 = 'sha3-512';
-
     /**
-     * PHP hash algorithm names supported by this class.
-     */
-    private const SUPPORTED_ALGORITHMS = [
-        self::ALGO_SHA1,
-        self::ALGO_SHA224,
-        self::ALGO_SHA256,
-        self::ALGO_SHA384,
-        self::ALGO_SHA512,
-        self::ALGO_SHA3_512,
-    ];
-
-    /**
-     * Minimum PBKDF2 iteration count the client will accept from a server, keyed by PHP hash algorithm name.
+     * Minimum PBKDF2 iteration count the client will accept from a server, keyed by HashAlgorithm value.
      * Values follow RFC 5802 (SHA-1: 4096) and RFC 7677 (SHA-256: 4096).
      */
     private const MIN_ITERATIONS = [
-        self::ALGO_SHA1     => 4096,
-        self::ALGO_SHA224   => 4096,
-        self::ALGO_SHA256   => 4096,
-        self::ALGO_SHA384   => 4096,
-        self::ALGO_SHA512   => 4096,
-        self::ALGO_SHA3_512 => 4096,
+        'sha1'     => 4096,
+        'sha224'   => 4096,
+        'sha256'   => 4096,
+        'sha384'   => 4096,
+        'sha512'   => 4096,
+        'sha3-512' => 4096,
     ];
 
     /**
-     * Maximum PBKDF2 iteration count accepted from a server (or configured for a server).
-     * OWASP 2024 recommends 600,000 for SHA-256 as a minimum; values above 1,000,000 are
-     * unlikely to reflect a legitimate security policy and risk client-side DoS.
+     * Maximum PBKDF2 iteration count accepted from a server (or configured for a server). Values
+     * above 1,000,000 are unlikely to reflect a legitimate security policy and risk client-side DoS.
      */
     private const MAX_ITERATIONS = 1000000;
 
     /**
-     * Default PBKDF2 iteration count used when the server generates a challenge, keyed by PHP hash
-     * algorithm name. Values are based on RFC 8265 guidance (≥15,000 for SHA-256) and scaled
-     * conservatively for stronger hash variants.
+     * Default PBKDF2 iteration count used when the server generates a challenge, keyed by
+     * HashAlgorithm value. Based on RFC 8265 guidance (≥15,000 for SHA-256), scaled conservatively
+     * for stronger hash variants.
      */
     private const DEFAULT_ITERATIONS = [
-        self::ALGO_SHA1     => 10000,
-        self::ALGO_SHA224   => 15000,
-        self::ALGO_SHA256   => 15000,
-        self::ALGO_SHA384   => 10000,
-        self::ALGO_SHA512   => 10000,
-        self::ALGO_SHA3_512 => 10000,
+        'sha1'     => 10000,
+        'sha224'   => 15000,
+        'sha256'   => 15000,
+        'sha384'   => 10000,
+        'sha512'   => 10000,
+        'sha3-512' => 10000,
     ];
 
     private const HMAC_CLIENT_KEY = 'Client Key';
 
     private const HMAC_SERVER_KEY = 'Server Key';
 
+    /**
+     * Context keys used to thread state between challenge invocations.
+     */
     private const CTX_GS2_HEADER = 'scram-gs2-header';
 
     private const CTX_CNONCE = 'scram-cnonce';
 
     private const CTX_CLIENT_FIRST_BARE = 'scram-client-first-bare';
 
-    private const CTX_SERVER_SIGNATURE  = 'scram-server-signature';
+    private const CTX_SERVER_SIGNATURE = 'scram-server-signature';
 
     private const CTX_NONCE = 'scram-nonce';
 
@@ -126,69 +105,31 @@ class ScramChallenge implements ChallengeInterface
 
     private const INVALID_PROOF = 'e=invalid-proof';
 
-    /**
-     * @var SaslContext
-     */
-    private $context;
+    private readonly SaslContext $context;
 
-    /**
-     * @var ScramEncoder
-     */
-    private $encoder;
+    private readonly ScramEncoder $encoder;
 
-    /**
-     * PHP hash algorithm name (e.g. 'sha256', 'sha1', 'sha3-512').
-     *
-     * @var string
-     */
-    private $hashAlgorithm;
-
-    /**
-     * Whether this is a channel-binding (-PLUS) variant.
-     *
-     * @var bool
-     */
-    private $isChannelBinding;
-
-    /**
-     * @throws SaslException
-     */
     public function __construct(
         bool $isServerMode = false,
-        string $hashAlgorithm = 'sha256',
-        bool $isChannelBinding = false
+        private readonly HashAlgorithm $hashAlgorithm = HashAlgorithm::SHA256,
+        private readonly bool $isChannelBinding = false,
     ) {
-        if (!in_array($hashAlgorithm, self::SUPPORTED_ALGORITHMS, true)) {
-            throw new SaslException(sprintf(
-                'The hash algorithm "%s" is not supported. Supported algorithms: %s.',
-                $hashAlgorithm,
-                implode(', ', self::SUPPORTED_ALGORITHMS)
-            ));
-        }
-
-        $this->hashAlgorithm = $hashAlgorithm;
-        $this->isChannelBinding = $isChannelBinding;
         $this->encoder = new ScramEncoder();
         $this->context = new SaslContext();
         $this->context->setIsServerMode($isServerMode);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function challenge(
         ?string $received = null,
-        array $options = []
+        array $options = [],
     ): SaslContext {
         # Keep the raw received string for auth-message construction before decoding.
         $rawReceived = $received;
-        $received = $received !== null ? $this->encoder->decode($received, $this->context) : null;
+        $message = $received !== null ? $this->encoder->decode($received, $this->context) : null;
 
-        if ($this->context->isServerMode()) {
-            $response = $this->generateServerResponse($received, $rawReceived, $options);
-        } else {
-            $response = $this->generateClientResponse($received, $rawReceived, $options);
-        }
+        $response = $this->context->isServerMode()
+            ? $this->generateServerResponse($message, $rawReceived, $options)
+            : $this->generateClientResponse($message, $rawReceived, $options);
 
         $this->context->setResponse($response);
 
@@ -196,12 +137,14 @@ class ScramChallenge implements ChallengeInterface
     }
 
     /**
+     * @param array<string, mixed> $options
+     *
      * @throws SaslException
      */
     private function generateClientResponse(
         ?Message $received,
         ?string $rawReceived,
-        array $options
+        array $options,
     ): ?string {
         # Step 1: No message yet — generate client-first-message.
         if ($received === null) {
@@ -224,12 +167,14 @@ class ScramChallenge implements ChallengeInterface
     }
 
     /**
+     * @param array<string, mixed> $options
+     *
      * @throws SaslException
      */
     private function generateServerResponse(
         ?Message $received,
         ?string $rawReceived,
-        array $options
+        array $options,
     ): ?string {
         # SCRAM is client-initiated — the server has no opening message.
         if ($received === null) {
@@ -243,21 +188,13 @@ class ScramChallenge implements ChallengeInterface
 
         # Step 2: Client-final-message received (contains channel binding 'c' and proof 'p').
         if ($received->has('c') && $received->has('p')) {
-            return $this->generateServerFinal(
-                $received,
-                $options
-            );
+            return $this->generateServerFinal($received, $options);
         }
 
         throw new SaslException('Unexpected SCRAM message received on the server.');
     }
 
     /**
-     * Generates the client-first-message: GS2-header + client-first-message-bare.
-     *
-     *   client-first-message = gs2-header client-first-message-bare
-     *   client-first-message-bare = [reserved-mext ","] n=username "," r=nonce
-     *
      * @param array{username?: string, cnonce?: string, cbind_type?: string} $options
      *
      * @throws SaslException
@@ -286,11 +223,7 @@ class ScramChallenge implements ChallengeInterface
         $username = SaslPrep::prepare($username);
 
         # RFC 5802 section 5.1: '=' and ',' in the username must be encoded.
-        $username = str_replace(
-            ['=', ','],
-            ['=3D', '=2C'],
-            $username
-        );
+        $username = str_replace(['=', ','], ['=3D', '=2C'], $username);
 
         $clientFirstBare = 'n=' . $username . ',r=' . $cnonce;
 
@@ -302,11 +235,6 @@ class ScramChallenge implements ChallengeInterface
     }
 
     /**
-     * Generates the client-final-message from the received server-first-message.
-     *
-     *   client-final-message = client-final-message-without-proof "," p=client-proof
-     *   client-final-message-without-proof = "c=" base64 "," r=nonce
-     *
      * @param array{password?: string, cbind_data?: string} $options
      *
      * @throws SaslException
@@ -314,7 +242,7 @@ class ScramChallenge implements ChallengeInterface
     private function generateClientFinal(
         Message $serverFirst,
         string $rawServerFirst,
-        array $options
+        array $options,
     ): string {
         $password = $options['password'] ?? null;
         if ($password === null) {
@@ -325,7 +253,7 @@ class ScramChallenge implements ChallengeInterface
         $cnonce = $this->context->get(self::CTX_CNONCE);
         if ($cnonce === null) {
             throw new SaslException(
-                'client-final called before client-first: no client nonce found in context.'
+                'client-final called before client-first: no client nonce found in context.',
             );
         }
         $cnonce = (string) $cnonce;
@@ -340,37 +268,26 @@ class ScramChallenge implements ChallengeInterface
 
         $clientFinalWithoutProof = 'c=' . $channelBinding . ',r=' . $fullNonce;
 
-        # RFC 5802 section 3: AuthMessage = client-first-bare "," server-first "," client-final-without-proof
+        # RFC 5802 §3: AuthMessage = client-first-bare "," server-first "," client-final-without-proof
         $authMessage = $this->context->get(self::CTX_CLIENT_FIRST_BARE)
             . ',' . $rawServerFirst
             . ',' . $clientFinalWithoutProof;
 
-        $saltedPassword = $this->deriveSaltedPassword((string) $password, $salt, $iterations);
-        $clientProof = $this->makeClientProof(
-            $saltedPassword,
-            $authMessage
-        );
+        $saltedPassword = $this->deriveSaltedPassword($password, $salt, $iterations);
+        $clientProof = $this->makeClientProof($saltedPassword, $authMessage);
 
         # Pre-compute the expected server signature so we can verify it in step 3.
-        $serverKey = $this->hmac(
-            $saltedPassword,
-            self::HMAC_SERVER_KEY
-        );
-        $serverSignature = $this->hmac(
-            $serverKey,
-            $authMessage
-        );
+        $serverKey = $this->hmac($saltedPassword, self::HMAC_SERVER_KEY);
+        $serverSignature = $this->hmac($serverKey, $authMessage);
         $this->context->set(
             self::CTX_SERVER_SIGNATURE,
-            base64_encode($serverSignature)
+            base64_encode($serverSignature),
         );
 
         return $clientFinalWithoutProof . ',p=' . base64_encode($clientProof);
     }
 
     /**
-     * Verifies the server-final-message and marks authentication as complete.
-     *
      * @throws SaslException
      */
     private function verifyServerFinal(Message $serverFinal): void
@@ -380,7 +297,7 @@ class ScramChallenge implements ChallengeInterface
         if ($serverFinal->has('e')) {
             throw new SaslException(sprintf(
                 'SCRAM authentication failed with server error: %s',
-                $serverFinal->get('e')
+                $serverFinal->get('e'),
             ));
         }
 
@@ -395,10 +312,6 @@ class ScramChallenge implements ChallengeInterface
     }
 
     /**
-     * Generates the server-first-message in response to the client-first-message.
-     *
-     *   server-first-message = [reserved-mext ","] r=nonce "," s=salt "," i=iteration-count
-     *
      * @param array{nonce?: string, salt?: string, iterations?: int} $options
      *
      * @throws SaslException
@@ -406,14 +319,14 @@ class ScramChallenge implements ChallengeInterface
     private function generateServerFirst(
         Message $clientFirst,
         string $rawClientFirst,
-        array $options
+        array $options,
     ): string {
         $cnonce = (string) $clientFirst->get('r');
         $snonce = $options['nonce'] ?? $this->generateNonce(self::NONCE_SIZE);
         $fullNonce = $cnonce . $snonce;
 
         $salt = $options['salt'] ?? random_bytes(16);
-        $iterations = (int) ($options['iterations'] ?? self::DEFAULT_ITERATIONS[$this->hashAlgorithm]);
+        $iterations = (int) ($options['iterations'] ?? self::DEFAULT_ITERATIONS[$this->hashAlgorithm->value]);
         if ($iterations < 1) {
             throw new SaslException('The iteration count must be greater than zero.');
         }
@@ -421,7 +334,7 @@ class ScramChallenge implements ChallengeInterface
             throw new SaslException(sprintf(
                 'The iteration count of %d exceeds the maximum allowed of %d.',
                 $iterations,
-                self::MAX_ITERATIONS
+                self::MAX_ITERATIONS,
             ));
         }
 
@@ -438,8 +351,6 @@ class ScramChallenge implements ChallengeInterface
     }
 
     /**
-     * Verifies the client-final-message and generates the server-final-message.
-     *
      * Returns 'v=<server-signature>' on success, or 'e=<error>' on failure.
      *
      * @param array{password?: string} $options
@@ -448,7 +359,7 @@ class ScramChallenge implements ChallengeInterface
      */
     private function generateServerFinal(
         Message $clientFinal,
-        array $options
+        array $options,
     ): string {
         $this->context->setIsComplete(true);
 
@@ -465,20 +376,15 @@ class ScramChallenge implements ChallengeInterface
         $salt = (string) $this->context->get(self::CTX_SALT);
         $iterations = (int) $this->context->get(self::CTX_ITERATIONS);
 
-        # Reconstruct client-final-without-proof for the auth message.
-        # RFC 5802: the order is fixed as c=...,r=...[,extensions] so we can rebuild it safely.
+        # RFC 5802: client-final-without-proof = c=...,r=...[,extensions] — fixed order, safely rebuildable.
         $clientFinalWithoutProof = 'c=' . $clientFinal->get('c') . ',r=' . $clientFinal->get('r');
         $authMessage = $this->context->get(self::CTX_CLIENT_FIRST_BARE)
             . ',' . $this->context->get(self::CTX_SERVER_FIRST)
             . ',' . $clientFinalWithoutProof;
 
         try {
-            $saltedPassword = $this->deriveSaltedPassword(
-                (string) $password,
-                $salt,
-                $iterations
-            );
-        } catch (SaslException $e) {
+            $saltedPassword = $this->deriveSaltedPassword($password, $salt, $iterations);
+        } catch (SaslException) {
             return self::INVALID_PROOF;
         }
 
@@ -505,7 +411,7 @@ class ScramChallenge implements ChallengeInterface
     {
         $pos = strpos(
             $clientFirst,
-            ',,'
+            ',,',
         );
         if ($pos === false) {
             throw new SaslException('Unable to parse GS2 header from client-first-message.');
@@ -513,7 +419,7 @@ class ScramChallenge implements ChallengeInterface
 
         return substr(
             $clientFirst,
-            $pos + 2
+            $pos + 2,
         );
     }
 
@@ -526,7 +432,7 @@ class ScramChallenge implements ChallengeInterface
      */
     private function parseServerFirst(
         Message $serverFirst,
-        string $cnonce
+        string $cnonce,
     ): array {
         $fullNonce = (string) $serverFirst->get('r');
         if (strncmp($fullNonce, $cnonce, strlen($cnonce)) !== 0) {
@@ -535,27 +441,27 @@ class ScramChallenge implements ChallengeInterface
 
         $salt = base64_decode(
             (string) $serverFirst->get('s'),
-            true
+            true,
         );
         if ($salt === false) {
             throw new SaslException('The server-provided salt is not valid base64.');
         }
 
         $iterations = (int) $serverFirst->get('i');
-        $minIterations = self::MIN_ITERATIONS[$this->hashAlgorithm];
+        $minIterations = self::MIN_ITERATIONS[$this->hashAlgorithm->value];
         if ($iterations < $minIterations) {
             throw new SaslException(sprintf(
                 'The server iteration count of %d is below the minimum of %d for %s.',
                 $iterations,
                 $minIterations,
-                $this->hashAlgorithm
+                $this->hashAlgorithm->value,
             ));
         }
         if ($iterations > self::MAX_ITERATIONS) {
             throw new SaslException(sprintf(
                 'The server iteration count of %d exceeds the maximum allowed of %d.',
                 $iterations,
-                self::MAX_ITERATIONS
+                self::MAX_ITERATIONS,
             ));
         }
 
@@ -574,12 +480,12 @@ class ScramChallenge implements ChallengeInterface
     private function deriveSaltedPassword(
         string $password,
         string $salt,
-        int $iterations
+        int $iterations,
     ): string {
         return $this->pbkdf2(
             SaslPrep::prepare($password),
             $salt,
-            $iterations
+            $iterations,
         );
     }
 
@@ -591,15 +497,15 @@ class ScramChallenge implements ChallengeInterface
     private function isValidClientProof(
         Message $clientFinal,
         string $saltedPassword,
-        string $authMessage
+        string $authMessage,
     ): bool {
         $expectedProof = $this->makeClientProof(
             $saltedPassword,
-            $authMessage
+            $authMessage,
         );
         $receivedProof = base64_decode(
             (string) $clientFinal->get('p'),
-            true
+            true,
         );
 
         return $receivedProof !== false
@@ -614,15 +520,15 @@ class ScramChallenge implements ChallengeInterface
     private function pbkdf2(
         string $password,
         string $salt,
-        int $iterations
+        int $iterations,
     ): string {
         return hash_pbkdf2(
-            $this->hashAlgorithm,
+            $this->hashAlgorithm->value,
             $password,
             $salt,
             $iterations,
             0,
-            true
+            true,
         );
     }
 
@@ -631,13 +537,13 @@ class ScramChallenge implements ChallengeInterface
      */
     private function hmac(
         string $key,
-        string $data
+        string $data,
     ): string {
         return hash_hmac(
-            $this->hashAlgorithm,
+            $this->hashAlgorithm->value,
             $data,
             $key,
-            true
+            true,
         );
     }
 
@@ -647,20 +553,15 @@ class ScramChallenge implements ChallengeInterface
     private function hash(string $data): string
     {
         return hash(
-            $this->hashAlgorithm,
+            $this->hashAlgorithm->value,
             $data,
-            true
+            true,
         );
     }
 
-    /**
-     * @param string $saltedPassword
-     * @param string $authMessage
-     * @return string
-     */
     private function makeClientProof(
         string $saltedPassword,
-        string $authMessage
+        string $authMessage,
     ): string {
         $clientKey = $this->hmac(
             $saltedPassword,
@@ -683,10 +584,10 @@ class ScramChallenge implements ChallengeInterface
      */
     private function validateCbindType(string $cbindType): void
     {
-        if (!preg_match('/^[A-Za-z0-9.\-]+$/', $cbindType)) {
+        if (preg_match('/^[A-Za-z0-9.\-]+$/', $cbindType) !== 1) {
             throw new SaslException(
                 'The channel binding type contains invalid characters. ' .
-                'Only alphanumeric characters, hyphens, and dots are permitted.'
+                'Only alphanumeric characters, hyphens, and dots are permitted.',
             );
         }
     }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of the FreeDSx SASL package.
  *
@@ -24,57 +26,41 @@ use FreeDSx\Sasl\SecurityStrength;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-class DigestMD5Mechanism implements MechanismInterface
+final readonly class DigestMD5Mechanism implements MechanismInterface
 {
-    public const NAME = 'DIGEST-MD5';
+    private const A2_SERVER = ':';
 
-    protected const A2_SERVER = ':';
+    private const A2_CLIENT = 'AUTHENTICATE:';
 
-    protected const A2_CLIENT = 'AUTHENTICATE:';
-
-    /**
-     * {@inheritDoc}
-     */
-    public function getName(): string
+    public function getName(): MechanismName
     {
-        return self::NAME;
+        return MechanismName::DIGEST_MD5;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function challenge(bool $serverMode = false): ChallengeInterface
     {
-        $challenge = new DigestMD5Challenge();
-
-        return $challenge;
+        return new DigestMD5Challenge($serverMode);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function securityStrength(): SecurityStrength
     {
         return new SecurityStrength(
-            true,
-            true,
-            true,
-            false,
-            128
+            supportsIntegrity: true,
+            supportsPrivacy: true,
+            supportsAuth: true,
+            isPlainTextAuth: false,
+            maxKeySize: 128,
         );
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function securityLayer(): SecurityLayerInterface
     {
         return new DigestMD5SecurityLayer();
     }
 
-    public function __toString()
+    public function __toString(): string
     {
-        return self::NAME;
+        return MechanismName::DIGEST_MD5->value;
     }
 
     /**
@@ -97,31 +83,33 @@ class DigestMD5Mechanism implements MechanismInterface
      *
      * @throws SaslException
      */
-    public static function computeResponse(string $password, Message $challenge, Message $response, bool $useServerMode = false): string
-    {
+    public static function computeResponse(
+        string $password,
+        Message $challenge,
+        Message $response,
+        bool $useServerMode = false,
+    ): string {
         $a1 = self::computeA1($password, $challenge, $response);
 
         $qop = $response->get('qop');
         $digestUri = $response->get('digest-uri');
         $a2 = $useServerMode ? self::A2_SERVER : self::A2_CLIENT;
 
-        if ($qop === 'auth') {
-            $a2 .= $digestUri;
-        } elseif ($qop === 'auth-int' || $qop === 'auth-conf') {
-            $a2 .= $digestUri . ':00000000000000000000000000000000';
-        } else {
-            throw new SaslException('The qop directive must be one of: auth, auth-conf, auth-int.');
-        }
+        $a2 .= match ($qop) {
+            'auth' => $digestUri,
+            'auth-int', 'auth-conf' => $digestUri . ':00000000000000000000000000000000',
+            default => throw new SaslException('The qop directive must be one of: auth, auth-conf, auth-int.'),
+        };
         $a2 = hash('md5', $a2);
 
         return hash('md5', sprintf(
             '%s:%s:%s:%s:%s:%s',
             $a1,
             $challenge->get('nonce'),
-            str_pad(dechex($response->get('nc')), 8, '0', STR_PAD_LEFT),
+            str_pad(dechex((int) $response->get('nc')), 8, '0', STR_PAD_LEFT),
             $response->get('cnonce'),
             $response->get('qop'),
-            $a2
+            $a2,
         ));
     }
 
@@ -135,21 +123,23 @@ class DigestMD5Mechanism implements MechanismInterface
      *
      *   A1 = { H( { username-value, ":", realm-value, ":", passwd } ),
      *        ":", nonce-value, ":", cnonce-value }
-     *
      */
-    public static function computeA1(string $password, Message $challenge, Message $response): string
-    {
+    public static function computeA1(
+        string $password,
+        Message $challenge,
+        Message $response,
+    ): string {
         $a1 = hash('md5', sprintf(
             '%s:%s:%s',
             $response->get('username'),
             $response->get('realm'),
-            $password
+            $password,
         ), true);
         $a1 = sprintf(
             '%s:%s:%s',
             $a1,
             $challenge->get('nonce'),
-            $response->get('cnonce')
+            $response->get('cnonce'),
         );
         if ($response->has('authzid')) {
             $a1 .= ':' . $response->get('authzid');
