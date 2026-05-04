@@ -28,7 +28,7 @@ final readonly class AnonymousEncoder implements EncoderInterface
         SaslContext $context,
     ): string {
         if ($message->has('trace')) {
-            return $message->getString('trace') ?? '';
+            return $message->getString('trace');
         }
 
         return '';

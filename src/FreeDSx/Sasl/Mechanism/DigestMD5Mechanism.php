@@ -92,7 +92,7 @@ final readonly class DigestMD5Mechanism implements MechanismInterface
         $a1 = self::computeA1($password, $challenge, $response);
 
         $qop = $response->getString('qop');
-        $digestUri = $response->getString('digest-uri') ?? '';
+        $digestUri = $response->getString('digest-uri');
         $a2 = $useServerMode ? self::A2_SERVER : self::A2_CLIENT;
 
         $a2 .= match ($qop) {
@@ -105,10 +105,10 @@ final readonly class DigestMD5Mechanism implements MechanismInterface
         return hash('md5', sprintf(
             '%s:%s:%s:%s:%s:%s',
             $a1,
-            $challenge->getString('nonce') ?? '',
+            $challenge->getString('nonce'),
             str_pad(dechex($response->getIntOrParse('nc') ?? 0), 8, '0', STR_PAD_LEFT),
-            $response->getString('cnonce') ?? '',
-            $response->getString('qop') ?? '',
+            $response->getString('cnonce'),
+            $response->getString('qop'),
             $a2,
         ));
     }
@@ -131,18 +131,18 @@ final readonly class DigestMD5Mechanism implements MechanismInterface
     ): string {
         $a1 = hash('md5', sprintf(
             '%s:%s:%s',
-            $response->getString('username') ?? '',
-            $response->getString('realm') ?? '',
+            $response->getString('username'),
+            $response->getString('realm'),
             $password,
         ), true);
         $a1 = sprintf(
             '%s:%s:%s',
             $a1,
-            $challenge->getString('nonce') ?? '',
-            $response->getString('cnonce') ?? '',
+            $challenge->getString('nonce'),
+            $response->getString('cnonce'),
         );
         if ($response->has('authzid')) {
-            $a1 .= ':' . ($response->getString('authzid') ?? '');
+            $a1 .= ':' . $response->getString('authzid');
         }
 
         return hash('md5', $a1);

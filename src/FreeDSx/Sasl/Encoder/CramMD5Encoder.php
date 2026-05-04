@@ -51,7 +51,7 @@ final readonly class CramMD5Encoder implements EncoderInterface
             throw new SaslEncodingException('The server challenge message must contain a "challenge".');
         }
 
-        return '<' . ($message->getString('challenge') ?? '') . '>';
+        return '<' . ($message->getString('challenge')) . '>';
     }
 
     /**
@@ -65,8 +65,8 @@ final readonly class CramMD5Encoder implements EncoderInterface
         if (!$message->has('digest')) {
             throw new SaslEncodingException('The client response must contain a digest.');
         }
-        $username = $message->getString('username') ?? '';
-        $digest = $message->getString('digest') ?? '';
+        $username = $message->getString('username');
+        $digest = $message->getString('digest');
 
         if (preg_match('/^[0-9a-f]{32}$/', $digest) !== 1) {
             throw new SaslEncodingException('The client digest must be a 16 octet, lower-case, hexadecimal value');

@@ -181,15 +181,15 @@ final class DigestMD5Encoder implements EncoderInterface
     ): string {
         return match ($name) {
             'realm', 'nonce', 'username', 'cnonce', 'authzid', 'digest-uri'
-                => '"' . str_replace(['\\', '"'], ['\\\\', '\"'], $message->getString($name) ?? '') . '"',
+                => '"' . str_replace(['\\', '"'], ['\\\\', '\"'], $message->getString($name)) . '"',
             'qop', 'cipher'
                 => $isServerMode
                     ? '"' . implode(',', $message->getStringArray($name) ?? []) . '"'
-                    : ($message->getString($name) ?? ''),
+                    : $message->getString($name),
             'stale' => 'true',
-            'maxbuf', 'algorithm', 'charset' => $message->getString($name) ?? '',
+            'maxbuf', 'algorithm', 'charset' => $message->getString($name),
             'nc' => str_pad(dechex($message->getInt($name) ?? 0), 8, '0', STR_PAD_LEFT),
-            'response', 'rspauth' => $this->encodeLHexValue($message->getString($name) ?? '', 32),
+            'response', 'rspauth' => $this->encodeLHexValue($message->getString($name), 32),
             default => throw new SaslEncodingException(sprintf(
                 'Digest option %s is not supported.',
                 $name,

@@ -15,6 +15,7 @@ namespace FreeDSx\Sasl;
 
 use ArrayIterator;
 use Countable;
+use FreeDSx\Sasl\Exception\SaslException;
 use IteratorAggregate;
 use Traversable;
 
@@ -40,13 +41,33 @@ final class Message implements Countable, IteratorAggregate
         return $this->data[$name] ?? null;
     }
 
-    public function getString(string $name): ?string
+    public function getString(string $name): string
     {
         $value = $this->data[$name] ?? null;
 
         return is_string($value)
             ? $value
-            : null;
+            : '';
+    }
+
+    /**
+     * @throws SaslException
+     */
+    public function getStringOrFail(
+        string $name,
+        string $errorMessage = '',
+    ): string {
+        $value = $this->data[$name] ?? null;
+
+        if (!is_string($value)) {
+            throw new SaslException(
+                $errorMessage !== ''
+                    ? $errorMessage
+                    : sprintf('The required field "%s" is missing.', $name),
+            );
+        }
+
+        return $value;
     }
 
     public function getInt(string $name): ?int

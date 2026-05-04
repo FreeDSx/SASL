@@ -250,25 +250,23 @@ final readonly class ScramChallenge implements ChallengeInterface
         }
 
         # Guard against out-of-order calls: client-first must have run first to populate the cnonce.
-        $cnonce = $this->context->getString(self::CTX_CNONCE);
-        if ($cnonce === null) {
-            throw new SaslException(
-                'client-final called before client-first: no client nonce found in context.',
-            );
-        }
+        $cnonce = $this->context->getStringOrFail(
+            self::CTX_CNONCE,
+            'client-final called before client-first: no client nonce found in context.',
+        );
 
         # The full nonce must begin with the client nonce we sent — verify before processing anything else.
         [$fullNonce, $salt, $iterations] = $this->parseServerFirst($serverFirst, $cnonce);
 
         # Channel binding value: base64(gs2-header + cbind-data).
-        $gs2Header = $this->context->getString(self::CTX_GS2_HEADER) ?? '';
+        $gs2Header = $this->context->getString(self::CTX_GS2_HEADER);
         $cbindData = $options->getCbindData() ?? '';
         $channelBinding = base64_encode($gs2Header . $cbindData);
 
         $clientFinalWithoutProof = 'c=' . $channelBinding . ',r=' . $fullNonce;
 
         # RFC 5802 §3: AuthMessage = client-first-bare "," server-first "," client-final-without-proof
-        $authMessage = ($this->context->getString(self::CTX_CLIENT_FIRST_BARE) ?? '')
+        $authMessage = $this->context->getString(self::CTX_CLIENT_FIRST_BARE)
             . ',' . $rawServerFirst
             . ',' . $clientFinalWithoutProof;
 
@@ -296,12 +294,12 @@ final readonly class ScramChallenge implements ChallengeInterface
         if ($serverFinal->has('e')) {
             throw new SaslException(sprintf(
                 'SCRAM authentication failed with server error: %s',
-                $serverFinal->getString('e') ?? '',
+                $serverFinal->getString('e'),
             ));
         }
 
-        $expectedSig = $this->context->getString(self::CTX_SERVER_SIGNATURE) ?? '';
-        $receivedSig = $serverFinal->getString('v') ?? '';
+        $expectedSig = $this->context->getString(self::CTX_SERVER_SIGNATURE);
+        $receivedSig = $serverFinal->getString('v');
 
         if (!hash_equals($expectedSig, $receivedSig)) {
             throw new SaslException('The server signature does not match the expected value.');
@@ -318,7 +316,7 @@ final readonly class ScramChallenge implements ChallengeInterface
         string $rawClientFirst,
         ScramOptions $options,
     ): string {
-        $cnonce = $clientFirst->getString('r') ?? '';
+        $cnonce = $clientFirst->getString('r');
         $snonce = $options->getNonce() ?? $this->generateNonce(self::NONCE_SIZE);
         $fullNonce = $cnonce . $snonce;
 
@@ -363,19 +361,19 @@ final readonly class ScramChallenge implements ChallengeInterface
             return self::INVALID_PROOF;
         }
 
-        $fullNonce = $this->context->getString(self::CTX_NONCE) ?? '';
+        $fullNonce = $this->context->getString(self::CTX_NONCE);
         $clientNonce = $clientFinal->getString('r');
         if ($clientNonce !== $fullNonce) {
             return self::INVALID_PROOF;
         }
 
-        $salt = $this->context->getString(self::CTX_SALT) ?? '';
+        $salt = $this->context->getString(self::CTX_SALT);
         $iterations = $this->context->getInt(self::CTX_ITERATIONS) ?? 1;
 
         # RFC 5802: client-final-without-proof = c=...,r=...[,extensions] — fixed order, safely rebuildable.
-        $clientFinalWithoutProof = 'c=' . ($clientFinal->getString('c') ?? '') . ',r=' . $clientNonce;
-        $authMessage = ($this->context->getString(self::CTX_CLIENT_FIRST_BARE) ?? '')
-            . ',' . ($this->context->getString(self::CTX_SERVER_FIRST) ?? '')
+        $clientFinalWithoutProof = 'c=' . $clientFinal->getString('c') . ',r=' . $clientNonce;
+        $authMessage = $this->context->getString(self::CTX_CLIENT_FIRST_BARE)
+            . ',' . $this->context->getString(self::CTX_SERVER_FIRST)
             . ',' . $clientFinalWithoutProof;
 
         try {
@@ -430,13 +428,13 @@ final readonly class ScramChallenge implements ChallengeInterface
         Message $serverFirst,
         string $cnonce,
     ): array {
-        $fullNonce = $serverFirst->getString('r') ?? '';
+        $fullNonce = $serverFirst->getString('r');
         if (strncmp($fullNonce, $cnonce, strlen($cnonce)) !== 0) {
             throw new SaslException('The server nonce does not begin with the client nonce.');
         }
 
         $salt = base64_decode(
-            $serverFirst->getString('s') ?? '',
+            $serverFirst->getString('s'),
             true,
         );
         if ($salt === false) {
@@ -500,7 +498,7 @@ final readonly class ScramChallenge implements ChallengeInterface
             $authMessage,
         );
         $receivedProof = base64_decode(
-            $clientFinal->getString('p') ?? '',
+            $clientFinal->getString('p'),
             true,
         );
 

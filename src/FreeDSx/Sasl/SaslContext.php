@@ -13,6 +13,8 @@ declare(strict_types=1);
 
 namespace FreeDSx\Sasl;
 
+use FreeDSx\Sasl\Exception\SaslException;
+
 /**
  * Holds SASL context specific data related to a particular mechanism challenge / response.
  *
@@ -125,10 +127,28 @@ final class SaslContext
         return $this->data[$key] ?? null;
     }
 
-    public function getString(string $key): ?string
+    public function getString(string $key): string
     {
         $value = $this->data[$key] ?? null;
-        return is_string($value) ? $value : null;
+
+        return is_string($value)
+            ? $value
+            : '';
+    }
+
+    /**
+     * @throws SaslException
+     */
+    public function getStringOrFail(string $key, string $errorMessage = ''): string
+    {
+        $value = $this->data[$key] ?? null;
+        if (!is_string($value)) {
+            throw new SaslException(
+                $errorMessage !== '' ? $errorMessage : sprintf('The required key "%s" is missing.', $key),
+            );
+        }
+
+        return $value;
     }
 
     public function getInt(string $key): ?int

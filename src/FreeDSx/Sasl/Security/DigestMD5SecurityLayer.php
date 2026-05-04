@@ -49,7 +49,7 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
             'auth-int' => $this->sign($data, $context),
             default => throw new SaslException(sprintf(
                 'The qop option "%s" is not recognized as a security layer.',
-                $qop ?? 'null',
+                $qop,
             )),
         };
         $this->validateBufferLength($wrapped, $context);
@@ -70,7 +70,7 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
             'auth-int' => $this->verify($data, $context),
             default => throw new SaslException(sprintf(
                 'The qop option "%s" is not recognized as a security layer.',
-                $qop ?? 'null',
+                $qop,
             )),
         };
         $context->set('seqnumrcv', ($context->getInt('seqnumrcv') ?? 0) + 1);
@@ -107,7 +107,7 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
         }
 
         $cipher = $this->resolveCipher($context);
-        $a1 = $context->getString('a1') ?? '';
+        $a1 = $context->getString('a1');
         $isServerMode = $context->isServerMode();
         $encrypted = substr($data, 0, -6);
 
@@ -152,7 +152,7 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
         SaslContext $context,
     ): string {
         $cipher = $this->resolveCipher($context);
-        $a1 = $context->getString('a1') ?? '';
+        $a1 = $context->getString('a1');
         $isServerMode = $context->isServerMode();
         $seqnum = $context->getInt('seqnumsnt') ?? 0;
 
@@ -234,7 +234,7 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
     ): string {
         $seqnum = $context->getInt('seqnumsnt') ?? 0;
         $mc = $context->isServerMode() ? self::KIS_MC : self::KIC_MC;
-        $ki = $this->generateKeyKi($context->getString('a1') ?? '', $mc);
+        $ki = $this->generateKeyKi($context->getString('a1'), $mc);
         $macBlock = $this->generateMACBlock($ki, $message, $seqnum);
 
         return $message . $macBlock;
@@ -258,7 +258,7 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
         $message = substr($data, 0, -16);
         # Inverted selection of constant here, as this would be the receiving end.
         $mc = $context->isServerMode() ? self::KIC_MC : self::KIS_MC;
-        $ki = $this->generateKeyKi($context->getString('a1') ?? '', $mc);
+        $ki = $this->generateKeyKi($context->getString('a1'), $mc);
         $expectedMac = $this->generateMACBlock($ki, $message, $seqnum);
 
         if ($receivedMac !== $expectedMac) {
@@ -400,7 +400,7 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
         string $data,
         SaslContext $context,
     ): void {
-        $maxbuf = $context->has('maxbuf') ? (int) ($context->getString('maxbuf') ?? '') : self::MAXBUF;
+        $maxbuf = $context->has('maxbuf') ? (int) $context->getString('maxbuf') : self::MAXBUF;
         if (strlen($data) > $maxbuf) {
             throw new SaslException(sprintf(
                 'The wrapped buffer exceeds the maxbuf length of %s',

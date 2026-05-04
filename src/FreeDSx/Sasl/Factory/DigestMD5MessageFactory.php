@@ -145,7 +145,7 @@ final readonly class DigestMD5MessageFactory implements MessageFactoryInterface
         return sprintf(
             '%s/%s',
             is_string($options['service'] ?? null) ? $options['service'] : '',
-            $response->getString('realm') ?? '',
+            $response->getString('realm'),
         );
     }
 
@@ -293,11 +293,9 @@ final readonly class DigestMD5MessageFactory implements MessageFactoryInterface
      */
     private function getRealmFromChallenge(Message $challenge): string
     {
-        $realm = $challenge->getString('realm');
-        if ($realm === null) {
-            throw new SaslException('Unable to determine a realm for the response.');
-        }
-
-        return $realm;
+        return $challenge->getStringOrFail(
+            'realm',
+            'Unable to determine a realm for the response.',
+        );
     }
 }

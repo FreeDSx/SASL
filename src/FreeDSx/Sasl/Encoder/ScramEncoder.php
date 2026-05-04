@@ -43,7 +43,7 @@ final readonly class ScramEncoder implements EncoderInterface
     ): string {
         $parts = [];
         foreach (array_keys($message->toArray()) as $attr) {
-            $parts[] = $attr . '=' . ($message->getString($attr) ?? '');
+            $parts[] = $attr . '=' . ($message->getString($attr));
         }
 
         return implode(',', $parts);

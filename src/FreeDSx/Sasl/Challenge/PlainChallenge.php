@@ -68,9 +68,10 @@ final readonly class PlainChallenge implements ChallengeInterface
         if ($options->getValidate() === null) {
             throw new SaslException('You must pass a callable validate option to the plain mechanism in server mode.');
         }
-        $authzId = $message->getString('authzid');
-        $authcId = $message->getString('authcid') ?? '';
-        $password = $message->getString('password') ?? '';
+        $rawAuthzId = $message->get('authzid');
+        $authzId = is_string($rawAuthzId) ? $rawAuthzId : null;
+        $authcId = $message->getString('authcid');
+        $password = $message->getString('password');
 
         $this->context->setIsComplete(true);
         $this->context->setIsAuthenticated(($options->getValidate())($authzId, $authcId, $password));

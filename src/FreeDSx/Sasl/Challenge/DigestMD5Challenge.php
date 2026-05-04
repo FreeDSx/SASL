@@ -213,7 +213,7 @@ final class DigestMD5Challenge implements ChallengeInterface
             return null;
         }
         # The client sent a nonce without the minimum length from the RFC...
-        if (strlen($received->getString('cnonce') ?? '') < 12) {
+        if (strlen($received->getString('cnonce')) < 12) {
             return null;
         }
         # The client sent back a nonce different than what we sent them...

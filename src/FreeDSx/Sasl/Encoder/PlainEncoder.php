@@ -37,9 +37,9 @@ final readonly class PlainEncoder implements EncoderInterface
         if (!$message->has('password')) {
             throw new SaslEncodingException('The PLAIN message must contain a password.');
         }
-        $authzid = $this->validate($message->getString('authzid') ?? '');
-        $authcid = $this->validate($message->getString('authcid') ?? '');
-        $password = $this->validate($message->getString('password') ?? '');
+        $authzid = $this->validate($message->getString('authzid'));
+        $authcid = $this->validate($message->getString('authcid'));
+        $password = $this->validate($message->getString('password'));
 
         return $authzid . "\x00" . $authcid . "\x00" . $password;
     }
