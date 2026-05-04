@@ -35,7 +35,12 @@ trait NonceTrait
     protected function generateNonce(int $byteLength): string
     {
         try {
-            return base64_encode(random_bytes($byteLength));
+            return base64_encode(
+                random_bytes(max(
+                    1,
+                    $byteLength,
+                ))
+            );
         } catch (Exception $e) {
             throw new SaslException(
                 sprintf('Unable to generate the nonce: %s', $e->getMessage()),

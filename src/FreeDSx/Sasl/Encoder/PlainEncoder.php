@@ -37,9 +37,9 @@ final readonly class PlainEncoder implements EncoderInterface
         if (!$message->has('password')) {
             throw new SaslEncodingException('The PLAIN message must contain a password.');
         }
-        $authzid = $this->validate((string) $message->get('authzid'));
-        $authcid = $this->validate((string) $message->get('authcid'));
-        $password = $this->validate((string) $message->get('password'));
+        $authzid = $this->validate($message->getString('authzid') ?? '');
+        $authcid = $this->validate($message->getString('authcid') ?? '');
+        $password = $this->validate($message->getString('password') ?? '');
 
         return $authzid . "\x00" . $authcid . "\x00" . $password;
     }
@@ -48,7 +48,7 @@ final readonly class PlainEncoder implements EncoderInterface
         string $data,
         SaslContext $context,
     ): Message {
-        if (preg_match('/^([^\x0]+)\x00([^\x0]+)\x00([^\x0]+)$/', $data, $matches) === 0) {
+        if (preg_match('/^([^\x0]+)\x00([^\x0]+)\x00([^\x0]+)$/', $data, $matches) !== 1) {
             throw new SaslEncodingException('The PLAIN message data is malformed.');
         }
 

@@ -40,6 +40,73 @@ final class Message implements Countable, IteratorAggregate
         return $this->data[$name] ?? null;
     }
 
+    public function getString(string $name): ?string
+    {
+        $value = $this->data[$name] ?? null;
+
+        return is_string($value)
+            ? $value
+            : null;
+    }
+
+    public function getInt(string $name): ?int
+    {
+        $value = $this->data[$name] ?? null;
+
+        return is_int($value)
+            ? $value
+            : null;
+    }
+
+    /**
+     * Returns the value as int whether it is stored as int or as a numeric string.
+     */
+    public function getIntOrParse(string $name): ?int
+    {
+        $value = $this->data[$name] ?? null;
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            return (int) $value;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return mixed[]|null
+     */
+    public function getArray(string $name): ?array
+    {
+        $value = $this->data[$name] ?? null;
+
+        return is_array($value)
+            ? $value
+            : null;
+    }
+
+    /**
+     * @return string[]|null
+     */
+    public function getStringArray(string $name): ?array
+    {
+        $value = $this->data[$name] ?? null;
+        if (!is_array($value)) {
+            return null;
+        }
+        $strings = [];
+
+        foreach ($value as $v) {
+            if (is_string($v)) {
+                $strings[] = $v;
+            }
+        }
+
+        return $strings;
+    }
+
     public function has(string $name): bool
     {
         return array_key_exists($name, $this->data);

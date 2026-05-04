@@ -43,7 +43,10 @@ final readonly class AnonymousChallenge implements ChallengeInterface
         ?string $received = null,
         ?ChallengeOptionsInterface $options = null,
     ): SaslContext {
-        $resolved = $this->resolveOptions($options, AnonymousOptions::class);
+        $resolved = $this->resolveOptions(
+            $options ?? new AnonymousOptions(),
+            AnonymousOptions::class,
+        );
 
         if ($this->context->isServerMode()) {
             $this->processServer($received);

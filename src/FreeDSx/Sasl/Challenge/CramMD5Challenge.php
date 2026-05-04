@@ -47,7 +47,7 @@ final readonly class CramMD5Challenge implements ChallengeInterface
         ?ChallengeOptionsInterface $options = null,
     ): SaslContext {
         $resolved = $this->resolveOptions(
-            $options,
+            $options ?? new CramMD5Options(),
             CramMD5Options::class,
         );
         $message = $received === null ? null : $this->encoder->decode($received, $this->context);
@@ -95,7 +95,7 @@ final readonly class CramMD5Challenge implements ChallengeInterface
         }
         $response = new Message([
             'username' => $options->getUsername(),
-            'digest' => $this->generateDigest((string) $received->get('challenge'), $options->getPassword()),
+            'digest' => $this->generateDigest($received->getString('challenge') ?? '', $options->getPassword()),
         ]);
         $this->context->setResponse($this->encoder->encode($response, $this->context));
         $this->context->setIsComplete(true);
@@ -117,10 +117,10 @@ final readonly class CramMD5Challenge implements ChallengeInterface
         if ($options->getPasswordCallback() === null) {
             throw new SaslException('To validate the client response you must supply the passwordCallback option.');
         }
-        $username = $received->get('username');
-        $digest = $received->get('digest');
+        $username = $received->getString('username') ?? '';
+        $digest = $received->getString('digest');
 
-        $expectedDigest = ($options->getPasswordCallback())($username, $this->context->get('challenge'));
+        $expectedDigest = ($options->getPasswordCallback())($username, $this->context->getString('challenge') ?? '');
 
         $this->context->setIsAuthenticated($expectedDigest === $digest);
         $this->context->setIsComplete(true);

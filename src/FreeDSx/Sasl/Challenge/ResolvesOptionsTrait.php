@@ -28,10 +28,10 @@ trait ResolvesOptionsTrait
      * @throws SaslException
      */
     private function resolveOptions(
-        ?ChallengeOptionsInterface $options,
+        ChallengeOptionsInterface $options,
         string $expectedClass,
     ): ChallengeOptionsInterface {
-        if ($options !== null && !$options instanceof $expectedClass) {
+        if (!$options instanceof $expectedClass) {
             throw new SaslException(sprintf(
                 'Expected %s, got %s.',
                 $expectedClass,

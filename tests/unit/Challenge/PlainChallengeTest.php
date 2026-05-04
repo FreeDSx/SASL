@@ -41,7 +41,7 @@ final class PlainChallengeTest extends TestCase
     public function testTheServerResponseToTheClientWhenSuccessful(): void
     {
         $serverChallenge = new PlainChallenge(true);
-        $validate = static fn (string $authzid, string $authcid, string $password): bool => true;
+        $validate = static fn (?string $authzid, string $authcid, string $password): bool => true;
 
         $context = $serverChallenge->challenge(
             "foo\x00foo\x00bar",
@@ -56,7 +56,7 @@ final class PlainChallengeTest extends TestCase
     public function testTheServerResponseToTheClientWhenNotSuccessful(): void
     {
         $serverChallenge = new PlainChallenge(true);
-        $validate = static fn (string $authzid, string $authcid, string $password): bool => false;
+        $validate = static fn (?string $authzid, string $authcid, string $password): bool => false;
 
         $context = $serverChallenge->challenge(
             "foo\x00foo\x00bar",

@@ -1,9 +1,7 @@
 parameters:
-    # Level 6 for now. Bumping to 9 (matching LDAP-fork) is gated on the planned
-    # Options DTO refactor — most level 7-9 noise comes from the array<string, mixed>
-    # accessors on Message and SaslContext.
-    level: 6
+    level: max
     paths:
         - %currentWorkingDirectory%/src
+        - %currentWorkingDirectory%/tests
     treatPhpDocTypesAsCertain: false
     reportUnmatchedIgnoredErrors: false

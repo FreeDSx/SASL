@@ -125,6 +125,18 @@ final class SaslContext
         return $this->data[$key] ?? null;
     }
 
+    public function getString(string $key): ?string
+    {
+        $value = $this->data[$key] ?? null;
+        return is_string($value) ? $value : null;
+    }
+
+    public function getInt(string $key): ?int
+    {
+        $value = $this->data[$key] ?? null;
+        return is_int($value) ? $value : null;
+    }
+
     public function set(
         string $key,
         mixed $value,

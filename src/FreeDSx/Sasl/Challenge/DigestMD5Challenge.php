@@ -53,7 +53,7 @@ final class DigestMD5Challenge implements ChallengeInterface
         ?ChallengeOptionsInterface $options = null,
     ): SaslContext {
         $resolved = $this->resolveOptions(
-            $options,
+            $options ?? new DigestMD5Options(),
             DigestMD5Options::class,
         );
 
@@ -199,21 +199,21 @@ final class DigestMD5Challenge implements ChallengeInterface
         # @todo This should accept some kind of computed value, like the a1. Then it could generate the other values
         #       using that.
         $password = $options->getPassword();
-        $qop = $received->get('qop');
-        $cipher = $received->get('cipher');
+        $qop = $received->getString('qop');
+        $cipher = $received->getString('cipher');
         if ($password === null) {
             return null;
         }
         # Client selected a qop we did not advertise...
-        if (!in_array($qop, $this->challenge->get('qop'), true)) {
+        if (!in_array($qop, $this->challenge->getStringArray('qop') ?? [], true)) {
             return null;
         }
         # Client selected a cipher we did not advertise...
-        if (!in_array($cipher, $this->challenge->get('cipher'), true)) {
+        if (!in_array($cipher, $this->challenge->getStringArray('cipher') ?? [], true)) {
             return null;
         }
         # The client sent a nonce without the minimum length from the RFC...
-        if (strlen((string) $received->get('cnonce')) < 12) {
+        if (strlen($received->getString('cnonce') ?? '') < 12) {
             return null;
         }
         # The client sent back a nonce different than what we sent them...
