@@ -29,7 +29,7 @@ use FreeDSx\Sasl\Options\SelectOptions;
  *
  * @author Chad Sikorra <Chad.Sikorra@gmail.com>
  */
-final class Sasl
+final class Sasl implements SaslInterface
 {
     /**
      * @var array<string, MechanismInterface> keyed by MechanismName->value
@@ -41,11 +41,6 @@ final class Sasl
         $this->initMechs();
     }
 
-    /**
-     * Get a mechanism object by its name.
-     *
-     * @throws SaslException
-     */
     public function get(MechanismName $mechanism): MechanismInterface
     {
         $mech = $this->mechanisms[$mechanism->value] ?? null;
@@ -59,41 +54,25 @@ final class Sasl
         return $mech;
     }
 
-    /**
-     * Whether or not the mechanism is supported.
-     */
     public function supports(MechanismName $mechanism): bool
     {
         return isset($this->mechanisms[$mechanism->value]);
     }
 
-    /**
-     * Add a mechanism object.
-     */
-    public function add(MechanismInterface $mechanism): self
+    public function add(MechanismInterface $mechanism): static
     {
         $this->mechanisms[$mechanism->getName()->value] = $mechanism;
 
         return $this;
     }
 
-    /**
-     * Remove a mechanism by its name.
-     */
-    public function remove(MechanismName $mechanism): self
+    public function remove(MechanismName $mechanism): static
     {
         unset($this->mechanisms[$mechanism->value]);
 
         return $this;
     }
 
-    /**
-     * Given an array of mechanism names, and optional selection options, select the best supported mechanism available.
-     *
-     * @param MechanismName[] $choices array of mechanisms by their name
-     *
-     * @throws SaslException
-     */
     public function select(
         array $choices = [],
         ?SelectOptions $options = null,
@@ -102,9 +81,6 @@ final class Sasl
             ->select($choices, $options);
     }
 
-    /**
-     * @return array<string, MechanismInterface>
-     */
     public function mechanisms(): array
     {
         return $this->mechanisms;
