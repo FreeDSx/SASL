@@ -20,6 +20,7 @@ use FreeDSx\Sasl\Mechanism\DigestMD5Mechanism;
 use FreeDSx\Sasl\Mechanism\MechanismName;
 use FreeDSx\Sasl\Mechanism\PlainMechanism;
 use FreeDSx\Sasl\MechanismSelector;
+use FreeDSx\Sasl\Options\SelectOptions;
 use PHPUnit\Framework\TestCase;
 
 final class MechanismSelectorTest extends TestCase
@@ -52,21 +53,21 @@ final class MechanismSelectorTest extends TestCase
 
     public function testSelectWithUseIntegrity(): void
     {
-        $choice = $this->selector->select([], ['use_integrity' => true]);
+        $choice = $this->selector->select([], (new SelectOptions())->setUseIntegrity(true));
 
         self::assertSame(MechanismName::DIGEST_MD5, $choice->getName());
     }
 
     public function testSelectWithUsePrivacy(): void
     {
-        $choice = $this->selector->select([], ['use_privacy' => true]);
+        $choice = $this->selector->select([], (new SelectOptions())->setUsePrivacy(true));
 
         self::assertSame(MechanismName::DIGEST_MD5, $choice->getName());
     }
 
     public function testSelectWithoutPrivacyOrIntegrityStillSelectsTheBetterChoiceForAuth(): void
     {
-        $choice = $this->selector->select([], ['use_integrity' => false, 'use_privacy' => false]);
+        $choice = $this->selector->select([], null);
 
         self::assertSame(MechanismName::DIGEST_MD5, $choice->getName());
     }
@@ -91,7 +92,7 @@ final class MechanismSelectorTest extends TestCase
 
         $this->selector->select(
             [MechanismName::ANONYMOUS, MechanismName::PLAIN, MechanismName::CRAM_MD5],
-            ['use_integrity' => true],
+            (new SelectOptions())->setUseIntegrity(true),
         );
     }
 
@@ -101,7 +102,7 @@ final class MechanismSelectorTest extends TestCase
 
         $this->selector->select(
             [MechanismName::ANONYMOUS, MechanismName::PLAIN, MechanismName::CRAM_MD5],
-            ['use_privacy' => true],
+            (new SelectOptions())->setUsePrivacy(true),
         );
     }
 

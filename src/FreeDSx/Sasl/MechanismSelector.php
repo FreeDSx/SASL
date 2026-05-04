@@ -16,6 +16,7 @@ namespace FreeDSx\Sasl;
 use FreeDSx\Sasl\Exception\SaslException;
 use FreeDSx\Sasl\Mechanism\MechanismInterface;
 use FreeDSx\Sasl\Mechanism\MechanismName;
+use FreeDSx\Sasl\Options\SelectOptions;
 
 /**
  * Given an array of mechanism names, choose the best one available.
@@ -33,13 +34,12 @@ final readonly class MechanismSelector
 
     /**
      * @param MechanismName[] $choices
-     * @param array<string, mixed> $options
      *
      * @throws SaslException
      */
     public function select(
         array $choices = [],
-        array $options = [],
+        ?SelectOptions $options = null,
     ): MechanismInterface {
         $available = $this->getAvailableMechsFromChoices($choices, $options);
 
@@ -97,7 +97,6 @@ final readonly class MechanismSelector
 
     /**
      * @param MechanismName[] $choices
-     * @param array<string, mixed> $options
      *
      * @return MechanismInterface[]
      *
@@ -105,7 +104,7 @@ final readonly class MechanismSelector
      */
     private function getAvailableMechsFromChoices(
         array $choices,
-        array $options,
+        ?SelectOptions $options,
     ): array {
         $available = $this->filterFromChoices($choices);
         if (count($available) === 0) {
@@ -143,16 +142,15 @@ final readonly class MechanismSelector
 
     /**
      * @param MechanismInterface[] $available
-     * @param array<string, mixed> $options
      *
      * @return MechanismInterface[]
      */
     private function filterOptions(
         array $available,
-        array $options,
+        ?SelectOptions $options,
     ): array {
-        $useIntegrity = (bool) ($options['use_integrity'] ?? false);
-        $usePrivacy = (bool) ($options['use_privacy'] ?? false);
+        $useIntegrity = $options?->isUseIntegrity() ?? false;
+        $usePrivacy = $options?->isUsePrivacy() ?? false;
 
         # Don't need to worry whether it supports integrity or privacy...
         if (!$useIntegrity && !$usePrivacy) {

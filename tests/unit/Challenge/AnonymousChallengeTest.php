@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Tests\Unit\FreeDSx\Sasl\Challenge;
 
 use FreeDSx\Sasl\Challenge\AnonymousChallenge;
+use FreeDSx\Sasl\Options\AnonymousOptions;
 use PHPUnit\Framework\TestCase;
 
 final class AnonymousChallengeTest extends TestCase
@@ -27,7 +28,7 @@ final class AnonymousChallengeTest extends TestCase
 
     public function testTheClientChallenge(): void
     {
-        $context = $this->challenge->challenge(null, ['username' => 'foo', 'password' => 'bar']);
+        $context = $this->challenge->challenge(null, (new AnonymousOptions())->setTrace('foo'));
 
         self::assertSame('foo', $context->getResponse());
         self::assertTrue($context->isComplete());
@@ -36,7 +37,7 @@ final class AnonymousChallengeTest extends TestCase
 
     public function testTheClientChallengeWithSpecificTrace(): void
     {
-        $context = $this->challenge->challenge(null, ['trace' => 'foobar', 'password' => 'bar']);
+        $context = $this->challenge->challenge(null, (new AnonymousOptions())->setTrace('foobar'));
 
         self::assertSame('foobar', $context->getResponse());
         self::assertTrue($context->isComplete());

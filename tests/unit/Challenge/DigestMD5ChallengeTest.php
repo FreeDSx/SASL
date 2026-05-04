@@ -16,6 +16,7 @@ namespace Tests\Unit\FreeDSx\Sasl\Challenge;
 use FreeDSx\Sasl\Challenge\DigestMD5Challenge;
 use FreeDSx\Sasl\Encoder\DigestMD5Encoder;
 use FreeDSx\Sasl\Exception\SaslException;
+use FreeDSx\Sasl\Options\DigestMD5Options;
 use FreeDSx\Sasl\SaslContext;
 use PHPUnit\Framework\TestCase;
 
@@ -43,7 +44,10 @@ final class DigestMD5ChallengeTest extends TestCase
     public function testThatClientResponseIsGeneratedFromChallenge(): void
     {
         $response = $this->encoder->decode(
-            (string) $this->challenge->challenge($this->challengeData, ['use_privacy' => true])->getResponse(),
+            (string) $this->challenge->challenge(
+                $this->challengeData,
+                (new DigestMD5Options())->setUsePrivacy(true),
+            )->getResponse(),
             (new SaslContext())->setIsServerMode(true),
         );
 
@@ -56,7 +60,7 @@ final class DigestMD5ChallengeTest extends TestCase
         $response = $this->encoder->decode(
             (string) $this->challenge->challenge(
                 $this->challengeData,
-                ['use_privacy' => true, 'host' => 'foo.bar.local'],
+                (new DigestMD5Options())->setUsePrivacy(true)->setHost('foo.bar.local'),
             )->getResponse(),
             (new SaslContext())->setIsServerMode(true),
         );
@@ -66,20 +70,16 @@ final class DigestMD5ChallengeTest extends TestCase
 
     public function testSecurityLayerIsInitializedProperlyInTheContext(): void
     {
-        $options = [
-            'use_privacy' => true,
-            'cipher' => 'rc4',
-            'username' => 'WillifoA',
-            'password' => 'Password1',
-        ];
-        $this->challenge->challenge(
-            $this->challengeData,
-            ['cnonce' => 'tQvBPuDOMTE=', 'nonce' => 'Zzk0ux7KgOVPmN7dLofGm9KqNesbnCXRcIAQSmxuQEk='] + $options,
-        );
-        $context = $this->challenge->challenge(
-            $this->rspAuthSuccess,
-            ['cnonce' => 'tQvBPuDOMTE=', 'nonce' => 'Zzk0ux7KgOVPmN7dLofGm9KqNesbnCXRcIAQSmxuQEk='] + $options,
-        );
+        $options = (new DigestMD5Options())
+            ->setUsePrivacy(true)
+            ->setCipher('rc4')
+            ->setUsername('WillifoA')
+            ->setPassword('Password1')
+            ->setCnonce('tQvBPuDOMTE=')
+            ->setNonce('Zzk0ux7KgOVPmN7dLofGm9KqNesbnCXRcIAQSmxuQEk=');
+
+        $this->challenge->challenge($this->challengeData, $options);
+        $context = $this->challenge->challenge($this->rspAuthSuccess, $options);
 
         self::assertTrue($context->isAuthenticated(), 'Context should be authenticated, but was not.');
         self::assertTrue($context->hasSecurityLayer(), 'Context should have a security layer, but it does not.');
@@ -107,7 +107,10 @@ final class DigestMD5ChallengeTest extends TestCase
     {
         $serverChallenge = new DigestMD5Challenge(true);
         $challenge = $this->encoder->decode(
-            (string) $serverChallenge->challenge(null, ['use_integrity' => true, 'use_privacy' => true])->getResponse(),
+            (string) $serverChallenge->challenge(
+                null,
+                (new DigestMD5Options())->setUseIntegrity(true)->setUsePrivacy(true),
+            )->getResponse(),
             new SaslContext(),
         );
 

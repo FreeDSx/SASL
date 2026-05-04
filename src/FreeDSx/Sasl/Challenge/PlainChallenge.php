@@ -16,6 +16,8 @@ namespace FreeDSx\Sasl\Challenge;
 use FreeDSx\Sasl\Encoder\PlainEncoder;
 use FreeDSx\Sasl\Exception\SaslException;
 use FreeDSx\Sasl\Message;
+use FreeDSx\Sasl\Options\ChallengeOptionsInterface;
+use FreeDSx\Sasl\Options\PlainOptions;
 use FreeDSx\Sasl\SaslContext;
 
 /**
@@ -25,9 +27,11 @@ use FreeDSx\Sasl\SaslContext;
  */
 final readonly class PlainChallenge implements ChallengeInterface
 {
-    private readonly PlainEncoder $encoder;
+    use ResolvesOptionsTrait;
 
-    private readonly SaslContext $context;
+    private PlainEncoder $encoder;
+
+    private SaslContext $context;
 
     public function __construct(bool $isServerMode = false)
     {
@@ -38,28 +42,30 @@ final readonly class PlainChallenge implements ChallengeInterface
 
     public function challenge(
         ?string $received = null,
-        array $options = [],
+        ?ChallengeOptionsInterface $options = null,
     ): SaslContext {
+        $resolved = $this->resolveOptions(
+            $options,
+            PlainOptions::class,
+        );
         $message = $received === null ? null : $this->encoder->decode($received, $this->context);
 
         return $this->context->isServerMode()
-            ? $this->serverProcess($message, $options)
-            : $this->clientProcess($options);
+            ? $this->serverProcess($message, $resolved)
+            : $this->clientProcess($resolved);
     }
 
     /**
-     * @param array<string, mixed> $options
-     *
      * @throws SaslException
      */
     private function serverProcess(
         ?Message $message,
-        array $options,
+        PlainOptions $options,
     ): SaslContext {
         if ($message === null) {
             return $this->context;
         }
-        if (!isset($options['validate']) || !is_callable($options['validate'])) {
+        if ($options->getValidate() === null) {
             throw new SaslException('You must pass a callable validate option to the plain mechanism in server mode.');
         }
         $authzId = $message->get('authzid');
@@ -67,28 +73,26 @@ final readonly class PlainChallenge implements ChallengeInterface
         $password = $message->get('password');
 
         $this->context->setIsComplete(true);
-        $this->context->setIsAuthenticated((bool) $options['validate']($authzId, $authcId, $password));
+        $this->context->setIsAuthenticated((bool) ($options->getValidate())($authzId, $authcId, $password));
 
         return $this->context;
     }
 
     /**
-     * @param array<string, mixed> $options
-     *
      * @throws SaslException
      */
-    private function clientProcess(array $options): SaslContext
+    private function clientProcess(PlainOptions $options): SaslContext
     {
-        if (!isset($options['username'])) {
+        if ($options->getUsername() === null) {
             throw new SaslException('You must supply a username for the PLAIN mechanism.');
         }
-        if (!isset($options['password'])) {
+        if ($options->getPassword() === null) {
             throw new SaslException('You must supply a password for the PLAIN mechanism.');
         }
         $message = new Message([
-            'authzid' => $options['username'],
-            'authcid' => $options['username'],
-            'password' => $options['password'],
+            'authzid' => $options->getUsername(),
+            'authcid' => $options->getUsername(),
+            'password' => $options->getPassword(),
         ]);
         $this->context->setResponse($this->encoder->encode($message, $this->context));
         $this->context->setIsComplete(true);
