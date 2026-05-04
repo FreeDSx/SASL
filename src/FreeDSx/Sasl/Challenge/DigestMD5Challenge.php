@@ -19,6 +19,8 @@ use FreeDSx\Sasl\Factory\DigestMD5MessageFactory;
 use FreeDSx\Sasl\Factory\DigestMD5MessageType;
 use FreeDSx\Sasl\Mechanism\DigestMD5Mechanism;
 use FreeDSx\Sasl\Message;
+use FreeDSx\Sasl\Options\ChallengeOptionsInterface;
+use FreeDSx\Sasl\Options\DigestMD5Options;
 use FreeDSx\Sasl\SaslContext;
 
 /**
@@ -28,15 +30,7 @@ use FreeDSx\Sasl\SaslContext;
  */
 final class DigestMD5Challenge implements ChallengeInterface
 {
-    /**
-     * @var array<string, mixed>
-     */
-    private const DEFAULTS = [
-        'use_integrity' => false,
-        'use_privacy' => false,
-        'service' => 'ldap',
-        'nonce_size' => null,
-    ];
+    use ResolvesOptionsTrait;
 
     private readonly SaslContext $context;
 
@@ -56,27 +50,28 @@ final class DigestMD5Challenge implements ChallengeInterface
 
     public function challenge(
         ?string $received = null,
-        array $options = [],
+        ?ChallengeOptionsInterface $options = null,
     ): SaslContext {
-        $options = $options + self::DEFAULTS;
+        $resolved = $this->resolveOptions(
+            $options ?? new DigestMD5Options(),
+            DigestMD5Options::class,
+        );
 
         $message = $received === null ? null : $this->encoder->decode($received, $this->context);
         $response = $this->context->isServerMode()
-            ? $this->generateServerResponse($message, $options)
-            : $this->generateClientResponse($message, $options);
+            ? $this->generateServerResponse($message, $resolved)
+            : $this->generateClientResponse($message, $resolved);
         $this->context->setResponse($response);
 
         return $this->context;
     }
 
     /**
-     * @param array<string, mixed> $options
-     *
      * @throws SaslException
      */
     private function generateClientResponse(
         ?Message $message,
-        array $options,
+        DigestMD5Options $options,
     ): ?string {
         if ($message === null) {
             return null;
@@ -90,7 +85,7 @@ final class DigestMD5Challenge implements ChallengeInterface
         }
         if ($message->has('rspauth') && $message->get('rspauth') === $this->context->get('verification')) {
             $this->context->setIsAuthenticated(true);
-            $this->context->setHasSecurityLayer($options['use_integrity'] || $options['use_privacy']);
+            $this->context->setHasSecurityLayer($options->isUseIntegrity() || $options->isUsePrivacy());
         }
         if ($this->context->hasSecurityLayer()) {
             $this->context->set('seqnumsnt', 0);
@@ -102,13 +97,11 @@ final class DigestMD5Challenge implements ChallengeInterface
     }
 
     /**
-     * @param array<string, mixed> $options
-     *
      * @throws SaslException
      */
     private function generateServerResponse(
         ?Message $received,
-        array $options,
+        DigestMD5Options $options,
     ): ?string {
         $response = $received === null
             ? $this->generateServerChallenge($options)
@@ -127,38 +120,36 @@ final class DigestMD5Challenge implements ChallengeInterface
     }
 
     /**
-     * @param array<string, mixed> $options
-     *
      * @throws SaslException
      */
     private function createClientResponse(
         Message $message,
-        array $options,
+        DigestMD5Options $options,
     ): string {
-        $password = (string) ($options['password'] ?? '');
+        $password = $options->getPassword() ?? '';
 
         $qop = match (true) {
-            (bool) $options['use_privacy'] => 'auth-conf',
-            (bool) $options['use_integrity'] => 'auth-int',
+            $options->isUsePrivacy() => 'auth-conf',
+            $options->isUseIntegrity() => 'auth-int',
             default => 'auth',
         };
         $this->context->set('qop', $qop);
 
         $messageOpts = [
-            'username' => $options['username'] ?? null,
-            'digest-uri' => isset($options['host']) ? ($options['service'] . '/' . $options['host']) : null,
+            'username' => $options->getUsername(),
+            'digest-uri' => $options->getHost() !== null ? ($options->getService() . '/' . $options->getHost()) : null,
             'qop' => $qop,
-            'nonce_size' => $options['nonce_size'],
-            'service' => $options['service'],
+            'nonce_size' => $options->getNonceSize(),
+            'service' => $options->getService(),
         ];
-        if (isset($options['cnonce'])) {
-            $messageOpts['cnonce'] = $options['cnonce'];
+        if ($options->getCnonce() !== null) {
+            $messageOpts['cnonce'] = $options->getCnonce();
         }
-        if (isset($options['nonce'])) {
-            $messageOpts['nonce'] = $options['nonce'];
+        if ($options->getNonce() !== null) {
+            $messageOpts['nonce'] = $options->getNonce();
         }
-        if (isset($options['cipher'])) {
-            $messageOpts['cipher'] = $options['cipher'];
+        if ($options->getCipher() !== null) {
+            $messageOpts['cipher'] = $options->getCipher();
         }
         $response = $this->factory->create(
             DigestMD5MessageType::CLIENT_RESPONSE,
@@ -184,7 +175,7 @@ final class DigestMD5Challenge implements ChallengeInterface
         );
 
         # The A1 / cipher value is used in the security layer.
-        if ($options['use_integrity'] || $options['use_privacy']) {
+        if ($options->isUseIntegrity() || $options->isUsePrivacy()) {
             $this->context->set('a1', hex2bin(DigestMD5Mechanism::computeA1($password, $message, $response)));
             $this->context->set('cipher', $response->get('cipher'));
         }
@@ -193,13 +184,11 @@ final class DigestMD5Challenge implements ChallengeInterface
     }
 
     /**
-     * @param array<string, mixed> $options
-     *
      * @throws SaslException
      */
     private function generateServerVerification(
         Message $received,
-        array $options,
+        DigestMD5Options $options,
     ): ?Message {
         $this->context->setIsComplete(true);
         # The client sent a response without us sending a challenge...
@@ -209,22 +198,22 @@ final class DigestMD5Challenge implements ChallengeInterface
 
         # @todo This should accept some kind of computed value, like the a1. Then it could generate the other values
         #       using that.
-        $password = $options['password'] ?? null;
-        $qop = $received->get('qop');
-        $cipher = $received->get('cipher');
+        $password = $options->getPassword();
+        $qop = $received->getString('qop');
+        $cipher = $received->getString('cipher');
         if ($password === null) {
             return null;
         }
         # Client selected a qop we did not advertise...
-        if (!in_array($qop, $this->challenge->get('qop'), true)) {
+        if (!in_array($qop, $this->challenge->getStringArray('qop') ?? [], true)) {
             return null;
         }
         # Client selected a cipher we did not advertise...
-        if (!in_array($cipher, $this->challenge->get('cipher'), true)) {
+        if (!in_array($cipher, $this->challenge->getStringArray('cipher') ?? [], true)) {
             return null;
         }
         # The client sent a nonce without the minimum length from the RFC...
-        if (strlen((string) $received->get('cnonce')) < 12) {
+        if (strlen($received->getString('cnonce')) < 12) {
             return null;
         }
         # The client sent back a nonce different than what we sent them...
@@ -256,15 +245,21 @@ final class DigestMD5Challenge implements ChallengeInterface
     }
 
     /**
-     * @param array<string, mixed> $options
-     *
      * @throws SaslException
      */
-    private function generateServerChallenge(array $options): Message
+    private function generateServerChallenge(DigestMD5Options $options): Message
     {
         $this->challenge = $this->factory->create(
             DigestMD5MessageType::SERVER_CHALLENGE,
-            $options,
+            [
+                'use_integrity' => $options->isUseIntegrity(),
+                'use_privacy'   => $options->isUsePrivacy(),
+                'nonce'         => $options->getNonce(),
+                'nonce_size'    => $options->getNonceSize(),
+                'realm'         => $options->getRealm(),
+                'maxbuf'        => $options->getMaxbuf(),
+                'cipher'        => $options->getCipher(),
+            ],
         );
 
         return $this->challenge;

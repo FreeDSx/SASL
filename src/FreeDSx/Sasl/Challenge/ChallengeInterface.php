@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace FreeDSx\Sasl\Challenge;
 
 use FreeDSx\Sasl\Exception\SaslException;
+use FreeDSx\Sasl\Options\ChallengeOptionsInterface;
 use FreeDSx\Sasl\SaslContext;
 
 /**
@@ -24,20 +25,15 @@ use FreeDSx\Sasl\SaslContext;
 interface ChallengeInterface
 {
     /**
-     * Generate the next response to send in the challenge. It takes two optional parameters:
-     *
-     *  - The last message received. Null if no message has been received yet.
-     *  - An array of options used for generating the next message.
-     *
-     * The SaslContext returned indicates various aspects of the state of the challenge, including the response.
+     * Generate the next response to send in the challenge.
      *
      * @param string|null $received the last message received, or null if none
-     * @param array<string, mixed> $options options for generating the next message
+     * @param ?ChallengeOptionsInterface $options mechanism-specific options DTO
      *
      * @throws SaslException
      */
     public function challenge(
         ?string $received = null,
-        array $options = [],
+        ?ChallengeOptionsInterface $options = null,
     ): SaslContext;
 }

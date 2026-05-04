@@ -21,6 +21,8 @@ use FreeDSx\Sasl\Mechanism\MechanismInterface;
 use FreeDSx\Sasl\Mechanism\MechanismName;
 use FreeDSx\Sasl\Mechanism\PlainMechanism;
 use FreeDSx\Sasl\Mechanism\ScramMechanism;
+use FreeDSx\Sasl\Options\SaslOptions;
+use FreeDSx\Sasl\Options\SelectOptions;
 
 /**
  * The main SASL class.
@@ -34,17 +36,8 @@ final class Sasl
      */
     private array $mechanisms = [];
 
-    /**
-     * @var array{supported: MechanismName[]}
-     */
-    private array $options;
-
-    /**
-     * @param array{supported?: MechanismName[]} $options
-     */
-    public function __construct(array $options = [])
+    public function __construct(private readonly SaslOptions $options = new SaslOptions())
     {
-        $this->options = $options + ['supported' => []];
         $this->initMechs();
     }
 
@@ -95,16 +88,15 @@ final class Sasl
     }
 
     /**
-     * Given an array of mechanism names, and optional options, select the best supported mechanism available.
+     * Given an array of mechanism names, and optional selection options, select the best supported mechanism available.
      *
      * @param MechanismName[] $choices array of mechanisms by their name
-     * @param array<string, mixed> $options array of options (ie. ['use_integrity' => true])
      *
      * @throws SaslException
      */
     public function select(
         array $choices = [],
-        array $options = [],
+        ?SelectOptions $options = null,
     ): MechanismInterface {
         return (new MechanismSelector($this->mechanisms))
             ->select($choices, $options);
@@ -133,13 +125,13 @@ final class Sasl
             }
         }
 
-        if (count($this->options['supported']) === 0) {
+        if (count($this->options->getSupported()) === 0) {
             return;
         }
 
         $allowed = array_map(
             static fn (MechanismName $name): string => $name->value,
-            $this->options['supported'],
+            $this->options->getSupported(),
         );
         foreach (array_keys($this->mechanisms) as $key) {
             if (!in_array($key, $allowed, true)) {

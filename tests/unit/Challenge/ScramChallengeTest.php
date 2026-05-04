@@ -16,6 +16,7 @@ namespace Tests\Unit\FreeDSx\Sasl\Challenge;
 use FreeDSx\Sasl\Challenge\ScramChallenge;
 use FreeDSx\Sasl\Exception\SaslException;
 use FreeDSx\Sasl\Mechanism\HashAlgorithm;
+use FreeDSx\Sasl\Options\ScramOptions;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -59,10 +60,10 @@ final class ScramChallengeTest extends TestCase
 
     public function testClientFirstMessageMatchesRfcVector(): void
     {
-        $context = $this->challenge->challenge(null, [
-            'username' => self::USERNAME,
-            'cnonce' => self::CNONCE,
-        ]);
+        $context = $this->challenge->challenge(
+            null,
+            (new ScramOptions())->setUsername(self::USERNAME)->setCnonce(self::CNONCE),
+        );
 
         self::assertSame(self::CLIENT_FIRST, $context->getResponse());
         self::assertFalse($context->isComplete());
@@ -70,12 +71,15 @@ final class ScramChallengeTest extends TestCase
 
     public function testClientFinalMessageMatchesRfcVector(): void
     {
-        $this->challenge->challenge(null, [
-            'username' => self::USERNAME,
-            'cnonce' => self::CNONCE,
-        ]);
+        $this->challenge->challenge(
+            null,
+            (new ScramOptions())->setUsername(self::USERNAME)->setCnonce(self::CNONCE),
+        );
 
-        $context = $this->challenge->challenge(self::SERVER_FIRST, ['password' => self::PASSWORD]);
+        $context = $this->challenge->challenge(
+            self::SERVER_FIRST,
+            (new ScramOptions())->setPassword(self::PASSWORD),
+        );
 
         self::assertSame(self::CLIENT_FINAL, $context->getResponse());
         self::assertFalse($context->isComplete());
@@ -83,8 +87,14 @@ final class ScramChallengeTest extends TestCase
 
     public function testClientCompletesAndAuthenticatesOnValidServerFinal(): void
     {
-        $this->challenge->challenge(null, ['username' => self::USERNAME, 'cnonce' => self::CNONCE]);
-        $this->challenge->challenge(self::SERVER_FIRST, ['password' => self::PASSWORD]);
+        $this->challenge->challenge(
+            null,
+            (new ScramOptions())->setUsername(self::USERNAME)->setCnonce(self::CNONCE),
+        );
+        $this->challenge->challenge(
+            self::SERVER_FIRST,
+            (new ScramOptions())->setPassword(self::PASSWORD),
+        );
         $context = $this->challenge->challenge(self::SERVER_FINAL);
 
         self::assertNull($context->getResponse());
@@ -96,8 +106,14 @@ final class ScramChallengeTest extends TestCase
     {
         $this->expectException(SaslException::class);
 
-        $this->challenge->challenge(null, ['username' => self::USERNAME, 'cnonce' => self::CNONCE]);
-        $this->challenge->challenge(self::SERVER_FIRST, ['password' => self::PASSWORD]);
+        $this->challenge->challenge(
+            null,
+            (new ScramOptions())->setUsername(self::USERNAME)->setCnonce(self::CNONCE),
+        );
+        $this->challenge->challenge(
+            self::SERVER_FIRST,
+            (new ScramOptions())->setPassword(self::PASSWORD),
+        );
         $this->challenge->challenge('e=unknown-user');
     }
 
@@ -105,8 +121,14 @@ final class ScramChallengeTest extends TestCase
     {
         $this->expectException(SaslException::class);
 
-        $this->challenge->challenge(null, ['username' => self::USERNAME, 'cnonce' => self::CNONCE]);
-        $this->challenge->challenge(self::SERVER_FIRST, ['password' => self::PASSWORD]);
+        $this->challenge->challenge(
+            null,
+            (new ScramOptions())->setUsername(self::USERNAME)->setCnonce(self::CNONCE),
+        );
+        $this->challenge->challenge(
+            self::SERVER_FIRST,
+            (new ScramOptions())->setPassword(self::PASSWORD),
+        );
         $this->challenge->challenge('v=aW52YWxpZHNpZ25hdHVyZQ==');
     }
 
@@ -114,10 +136,13 @@ final class ScramChallengeTest extends TestCase
     {
         $this->expectException(SaslException::class);
 
-        $this->challenge->challenge(null, ['username' => self::USERNAME, 'cnonce' => self::CNONCE]);
+        $this->challenge->challenge(
+            null,
+            (new ScramOptions())->setUsername(self::USERNAME)->setCnonce(self::CNONCE),
+        );
         $this->challenge->challenge(
             'r=wrongnonce,s=' . self::SALT_B64 . ',i=' . self::ITERATIONS,
-            ['password' => self::PASSWORD],
+            (new ScramOptions())->setPassword(self::PASSWORD),
         );
     }
 
@@ -132,16 +157,19 @@ final class ScramChallengeTest extends TestCase
     {
         $this->expectException(SaslException::class);
 
-        $this->challenge->challenge(null, ['username' => self::USERNAME, 'cnonce' => self::CNONCE]);
+        $this->challenge->challenge(
+            null,
+            (new ScramOptions())->setUsername(self::USERNAME)->setCnonce(self::CNONCE),
+        );
         $this->challenge->challenge(self::SERVER_FIRST);
     }
 
     public function testClientEncodesSpecialCharactersInUsername(): void
     {
-        $context = $this->challenge->challenge(null, [
-            'username' => 'user=name,test',
-            'cnonce' => self::CNONCE,
-        ]);
+        $context = $this->challenge->challenge(
+            null,
+            (new ScramOptions())->setUsername('user=name,test')->setCnonce(self::CNONCE),
+        );
 
         self::assertStringContainsString('n=user=3Dname=2Ctest', (string) $context->getResponse());
     }
@@ -149,11 +177,10 @@ final class ScramChallengeTest extends TestCase
     public function testChannelBindingClientFirstUsesCorrectGs2Header(): void
     {
         $plusChallenge = new ScramChallenge(false, HashAlgorithm::SHA256, true);
-        $context = $plusChallenge->challenge(null, [
-            'username' => self::USERNAME,
-            'cnonce' => self::CNONCE,
-            'cbind_type' => 'tls-unique',
-        ]);
+        $context = $plusChallenge->challenge(
+            null,
+            (new ScramOptions())->setUsername(self::USERNAME)->setCnonce(self::CNONCE)->setCbindType('tls-unique'),
+        );
 
         self::assertStringStartsWith('p=tls-unique,,', (string) $context->getResponse());
     }
@@ -170,11 +197,13 @@ final class ScramChallengeTest extends TestCase
     public function testServerFirstMessageContainsClientNoncePrefix(): void
     {
         $server = new ScramChallenge(true, HashAlgorithm::SHA1);
-        $context = $server->challenge(self::CLIENT_FIRST, [
-            'nonce' => self::SNONCE,
-            'salt' => base64_decode(self::SALT_B64),
-            'iterations' => self::ITERATIONS,
-        ]);
+        $context = $server->challenge(
+            self::CLIENT_FIRST,
+            (new ScramOptions())
+                ->setNonce(self::SNONCE)
+                ->setSalt((string) base64_decode(self::SALT_B64))
+                ->setIterations(self::ITERATIONS),
+        );
 
         self::assertSame(self::SERVER_FIRST, $context->getResponse());
         self::assertFalse($context->isComplete());
@@ -183,12 +212,17 @@ final class ScramChallengeTest extends TestCase
     public function testServerFinalMessageOnValidProof(): void
     {
         $server = new ScramChallenge(true, HashAlgorithm::SHA1);
-        $server->challenge(self::CLIENT_FIRST, [
-            'nonce' => self::SNONCE,
-            'salt' => base64_decode(self::SALT_B64),
-            'iterations' => self::ITERATIONS,
-        ]);
-        $context = $server->challenge(self::CLIENT_FINAL, ['password' => self::PASSWORD]);
+        $server->challenge(
+            self::CLIENT_FIRST,
+            (new ScramOptions())
+                ->setNonce(self::SNONCE)
+                ->setSalt((string) base64_decode(self::SALT_B64))
+                ->setIterations(self::ITERATIONS),
+        );
+        $context = $server->challenge(
+            self::CLIENT_FINAL,
+            (new ScramOptions())->setPassword(self::PASSWORD),
+        );
 
         self::assertSame(self::SERVER_FINAL, $context->getResponse());
         self::assertTrue($context->isComplete());
@@ -198,12 +232,17 @@ final class ScramChallengeTest extends TestCase
     public function testServerFinalMessageOnInvalidProof(): void
     {
         $server = new ScramChallenge(true, HashAlgorithm::SHA1);
-        $server->challenge(self::CLIENT_FIRST, [
-            'nonce' => self::SNONCE,
-            'salt' => base64_decode(self::SALT_B64),
-            'iterations' => self::ITERATIONS,
-        ]);
-        $context = $server->challenge(self::CLIENT_FINAL, ['password' => 'wrongpassword']);
+        $server->challenge(
+            self::CLIENT_FIRST,
+            (new ScramOptions())
+                ->setNonce(self::SNONCE)
+                ->setSalt((string) base64_decode(self::SALT_B64))
+                ->setIterations(self::ITERATIONS),
+        );
+        $context = $server->challenge(
+            self::CLIENT_FINAL,
+            (new ScramOptions())->setPassword('wrongpassword'),
+        );
 
         self::assertStringStartsWith('e=', (string) $context->getResponse());
         self::assertTrue($context->isComplete());
@@ -213,12 +252,14 @@ final class ScramChallengeTest extends TestCase
     public function testServerFinalMessageWhenPasswordIsMissing(): void
     {
         $server = new ScramChallenge(true, HashAlgorithm::SHA1);
-        $server->challenge(self::CLIENT_FIRST, [
-            'nonce' => self::SNONCE,
-            'salt' => base64_decode(self::SALT_B64),
-            'iterations' => self::ITERATIONS,
-        ]);
-        $context = $server->challenge(self::CLIENT_FINAL, []);
+        $server->challenge(
+            self::CLIENT_FIRST,
+            (new ScramOptions())
+                ->setNonce(self::SNONCE)
+                ->setSalt((string) base64_decode(self::SALT_B64))
+                ->setIterations(self::ITERATIONS),
+        );
+        $context = $server->challenge(self::CLIENT_FINAL);
 
         self::assertSame('e=invalid-proof', $context->getResponse());
         self::assertTrue($context->isComplete());
@@ -229,10 +270,13 @@ final class ScramChallengeTest extends TestCase
     {
         $this->expectException(SaslException::class);
 
-        $this->challenge->challenge(null, ['username' => self::USERNAME, 'cnonce' => self::CNONCE]);
+        $this->challenge->challenge(
+            null,
+            (new ScramOptions())->setUsername(self::USERNAME)->setCnonce(self::CNONCE),
+        );
         $this->challenge->challenge(
             'r=' . self::CNONCE . self::SNONCE . ',s=' . self::SALT_B64 . ',i=1',
-            ['password' => self::PASSWORD],
+            (new ScramOptions())->setPassword(self::PASSWORD),
         );
     }
 
@@ -241,34 +285,41 @@ final class ScramChallengeTest extends TestCase
         $this->expectException(SaslException::class);
 
         $server = new ScramChallenge(true, HashAlgorithm::SHA1);
-        $server->challenge(self::CLIENT_FIRST, [
-            'nonce' => self::SNONCE,
-            'salt' => base64_decode(self::SALT_B64),
-            'iterations' => 0,
-        ]);
+        $server->challenge(
+            self::CLIENT_FIRST,
+            (new ScramOptions())
+                ->setNonce(self::SNONCE)
+                ->setSalt((string) base64_decode(self::SALT_B64))
+                ->setIterations(0),
+        );
     }
 
     public function testClientThrowsExceptionOnInvalidBase64Salt(): void
     {
         $this->expectException(SaslException::class);
 
-        $this->challenge->challenge(null, ['username' => self::USERNAME, 'cnonce' => self::CNONCE]);
+        $this->challenge->challenge(
+            null,
+            (new ScramOptions())->setUsername(self::USERNAME)->setCnonce(self::CNONCE),
+        );
         $this->challenge->challenge(
             'r=' . self::CNONCE . self::SNONCE . ',s=not!!valid!!base64,i=' . self::ITERATIONS,
-            ['password' => self::PASSWORD],
+            (new ScramOptions())->setPassword(self::PASSWORD),
         );
     }
 
     public function testServerReturnsInvalidProofOnMalformedBase64Proof(): void
     {
         $server = new ScramChallenge(true, HashAlgorithm::SHA1);
-        $server->challenge(self::CLIENT_FIRST, [
-            'nonce' => self::SNONCE,
-            'salt' => base64_decode(self::SALT_B64),
-            'iterations' => self::ITERATIONS,
-        ]);
+        $server->challenge(
+            self::CLIENT_FIRST,
+            (new ScramOptions())
+                ->setNonce(self::SNONCE)
+                ->setSalt((string) base64_decode(self::SALT_B64))
+                ->setIterations(self::ITERATIONS),
+        );
         $tampered = (string) preg_replace('/,p=[^,]+$/', ',p=not!!valid', self::CLIENT_FINAL);
-        $context = $server->challenge($tampered, ['password' => self::PASSWORD]);
+        $context = $server->challenge($tampered, (new ScramOptions())->setPassword(self::PASSWORD));
 
         self::assertSame('e=invalid-proof', $context->getResponse());
         self::assertFalse($context->isAuthenticated());
@@ -278,7 +329,10 @@ final class ScramChallengeTest extends TestCase
     {
         $this->expectException(SaslException::class);
 
-        $this->challenge->challenge(self::SERVER_FIRST, ['password' => self::PASSWORD]);
+        $this->challenge->challenge(
+            self::SERVER_FIRST,
+            (new ScramOptions())->setPassword(self::PASSWORD),
+        );
     }
 
     public function testClientThrowsExceptionOnInvalidChannelBindingType(): void
@@ -286,21 +340,23 @@ final class ScramChallengeTest extends TestCase
         $this->expectException(SaslException::class);
 
         $plusChallenge = new ScramChallenge(false, HashAlgorithm::SHA256, true);
-        $plusChallenge->challenge(null, [
-            'username' => self::USERNAME,
-            'cnonce' => self::CNONCE,
-            'cbind_type' => 'invalid,,type',
-        ]);
+        $plusChallenge->challenge(
+            null,
+            (new ScramOptions())->setUsername(self::USERNAME)->setCnonce(self::CNONCE)->setCbindType('invalid,,type'),
+        );
     }
 
     public function testClientThrowsExceptionWhenServerIterationCountExceedsMaximum(): void
     {
         $this->expectException(SaslException::class);
 
-        $this->challenge->challenge(null, ['username' => self::USERNAME, 'cnonce' => self::CNONCE]);
+        $this->challenge->challenge(
+            null,
+            (new ScramOptions())->setUsername(self::USERNAME)->setCnonce(self::CNONCE),
+        );
         $this->challenge->challenge(
             'r=' . self::CNONCE . self::SNONCE . ',s=' . self::SALT_B64 . ',i=1000001',
-            ['password' => self::PASSWORD],
+            (new ScramOptions())->setPassword(self::PASSWORD),
         );
     }
 
@@ -309,21 +365,23 @@ final class ScramChallengeTest extends TestCase
         $this->expectException(SaslException::class);
 
         $server = new ScramChallenge(true, HashAlgorithm::SHA1);
-        $server->challenge(self::CLIENT_FIRST, [
-            'nonce' => self::SNONCE,
-            'salt' => base64_decode(self::SALT_B64),
-            'iterations' => 1000001,
-        ]);
+        $server->challenge(
+            self::CLIENT_FIRST,
+            (new ScramOptions())
+                ->setNonce(self::SNONCE)
+                ->setSalt((string) base64_decode(self::SALT_B64))
+                ->setIterations(1000001),
+        );
     }
 
     public function testClientThrowsExceptionOnEmptyCnonce(): void
     {
         $this->expectException(SaslException::class);
 
-        $this->challenge->challenge(null, [
-            'username' => self::USERNAME,
-            'cnonce' => '',
-        ]);
+        $this->challenge->challenge(
+            null,
+            (new ScramOptions())->setUsername(self::USERNAME)->setCnonce(''),
+        );
     }
 
     public function testFullClientServerRoundTrip(): void
@@ -331,16 +389,25 @@ final class ScramChallengeTest extends TestCase
         $client = new ScramChallenge(false, HashAlgorithm::SHA256);
         $server = new ScramChallenge(true, HashAlgorithm::SHA256);
 
-        $clientFirst = $client->challenge(null, ['username' => self::USERNAME])->getResponse();
+        $clientFirst = $client->challenge(
+            null,
+            (new ScramOptions())->setUsername(self::USERNAME),
+        )->getResponse();
         self::assertNotNull($clientFirst);
 
         $serverFirst = $server->challenge($clientFirst)->getResponse();
         self::assertNotNull($serverFirst);
 
-        $clientFinal = $client->challenge($serverFirst, ['password' => self::PASSWORD])->getResponse();
+        $clientFinal = $client->challenge(
+            $serverFirst,
+            (new ScramOptions())->setPassword(self::PASSWORD),
+        )->getResponse();
         self::assertNotNull($clientFinal);
 
-        $serverContext = $server->challenge($clientFinal, ['password' => self::PASSWORD]);
+        $serverContext = $server->challenge(
+            $clientFinal,
+            (new ScramOptions())->setPassword(self::PASSWORD),
+        );
         $serverFinal = $serverContext->getResponse();
         self::assertStringStartsWith('v=', (string) $serverFinal);
         self::assertTrue($serverContext->isAuthenticated());

@@ -42,8 +42,8 @@ final readonly class ScramEncoder implements EncoderInterface
         SaslContext $context,
     ): string {
         $parts = [];
-        foreach ($message->toArray() as $attr => $value) {
-            $parts[] = $attr . '=' . $value;
+        foreach (array_keys($message->toArray()) as $attr) {
+            $parts[] = $attr . '=' . ($message->getString($attr));
         }
 
         return implode(',', $parts);

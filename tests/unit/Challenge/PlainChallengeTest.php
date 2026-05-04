@@ -13,7 +13,9 @@ declare(strict_types=1);
 
 namespace Tests\Unit\FreeDSx\Sasl\Challenge;
 
+use Closure;
 use FreeDSx\Sasl\Challenge\PlainChallenge;
+use FreeDSx\Sasl\Options\PlainOptions;
 use PHPUnit\Framework\TestCase;
 
 final class PlainChallengeTest extends TestCase
@@ -27,7 +29,10 @@ final class PlainChallengeTest extends TestCase
 
     public function testTheClientChallenge(): void
     {
-        $context = $this->challenge->challenge(null, ['username' => 'foo', 'password' => 'bar']);
+        $context = $this->challenge->challenge(
+            null,
+            (new PlainOptions())->setUsername('foo')->setPassword('bar'),
+        );
 
         self::assertSame("foo\x00foo\x00bar", $context->getResponse());
         self::assertTrue($context->isComplete());
@@ -36,9 +41,12 @@ final class PlainChallengeTest extends TestCase
     public function testTheServerResponseToTheClientWhenSuccessful(): void
     {
         $serverChallenge = new PlainChallenge(true);
-        $validate = static fn (string $authzid, string $authcid, string $password): bool => true;
+        $validate = static fn (?string $authzid, string $authcid, string $password): bool => true;
 
-        $context = $serverChallenge->challenge("foo\x00foo\x00bar", ['validate' => $validate]);
+        $context = $serverChallenge->challenge(
+            "foo\x00foo\x00bar",
+            (new PlainOptions())->setValidate(Closure::fromCallable($validate)),
+        );
 
         self::assertTrue($context->isComplete());
         self::assertTrue($context->isAuthenticated());
@@ -48,9 +56,12 @@ final class PlainChallengeTest extends TestCase
     public function testTheServerResponseToTheClientWhenNotSuccessful(): void
     {
         $serverChallenge = new PlainChallenge(true);
-        $validate = static fn (string $authzid, string $authcid, string $password): bool => false;
+        $validate = static fn (?string $authzid, string $authcid, string $password): bool => false;
 
-        $context = $serverChallenge->challenge("foo\x00foo\x00bar", ['validate' => $validate]);
+        $context = $serverChallenge->challenge(
+            "foo\x00foo\x00bar",
+            (new PlainOptions())->setValidate(Closure::fromCallable($validate)),
+        );
 
         self::assertTrue($context->isComplete());
         self::assertFalse($context->isAuthenticated());

@@ -17,6 +17,8 @@ use FreeDSx\Sasl\Encoder\CramMD5Encoder;
 use FreeDSx\Sasl\Exception\SaslException;
 use FreeDSx\Sasl\Factory\NonceTrait;
 use FreeDSx\Sasl\Message;
+use FreeDSx\Sasl\Options\ChallengeOptionsInterface;
+use FreeDSx\Sasl\Options\CramMD5Options;
 use FreeDSx\Sasl\SaslContext;
 
 /**
@@ -27,6 +29,7 @@ use FreeDSx\Sasl\SaslContext;
 final readonly class CramMD5Challenge implements ChallengeInterface
 {
     use NonceTrait;
+    use ResolvesOptionsTrait;
 
     private readonly SaslContext $context;
 
@@ -41,33 +44,34 @@ final readonly class CramMD5Challenge implements ChallengeInterface
 
     public function challenge(
         ?string $received = null,
-        array $options = [],
+        ?ChallengeOptionsInterface $options = null,
     ): SaslContext {
+        $resolved = $this->resolveOptions(
+            $options ?? new CramMD5Options(),
+            CramMD5Options::class,
+        );
         $message = $received === null ? null : $this->encoder->decode($received, $this->context);
 
         if ($message === null) {
             if ($this->context->isServerMode()) {
-                $this->generateServerChallenge($options);
+                $this->generateServerChallenge($resolved);
             }
 
             return $this->context;
         }
 
         if ($this->context->isServerMode()) {
-            $this->validateClientResponse($message, $options);
+            $this->validateClientResponse($message, $resolved);
         } else {
-            $this->generateClientResponse($message, $options);
+            $this->generateClientResponse($message, $resolved);
         }
 
         return $this->context;
     }
 
-    /**
-     * @param array<string, mixed> $options
-     */
-    private function generateServerChallenge(array $options): void
+    private function generateServerChallenge(CramMD5Options $options): void
     {
-        $nonce = (string) ($options['challenge'] ?? $this->generateNonce(32));
+        $nonce = $options->getChallenge() ?? $this->generateNonce(32);
         $challenge = new Message(['challenge' => $nonce]);
         $encoded = $this->encoder->encode($challenge, $this->context);
         $this->context->setResponse($encoded);
@@ -77,36 +81,32 @@ final readonly class CramMD5Challenge implements ChallengeInterface
     }
 
     /**
-     * @param array<string, mixed> $options
-     *
      * @throws SaslException
      */
     private function generateClientResponse(
         Message $received,
-        array $options,
+        CramMD5Options $options,
     ): void {
         if (!$received->has('challenge')) {
             throw new SaslException('Expected a server challenge to generate a client response.');
         }
-        if (!isset($options['username'], $options['password'])) {
+        if ($options->getUsername() === null || $options->getPassword() === null) {
             throw new SaslException('A username and password is required for a client response.');
         }
         $response = new Message([
-            'username' => $options['username'],
-            'digest' => $this->generateDigest((string) $received->get('challenge'), (string) $options['password']),
+            'username' => $options->getUsername(),
+            'digest' => $this->generateDigest($received->getString('challenge'), $options->getPassword()),
         ]);
         $this->context->setResponse($this->encoder->encode($response, $this->context));
         $this->context->setIsComplete(true);
     }
 
     /**
-     * @param array<string, mixed> $options
-     *
      * @throws SaslException
      */
     private function validateClientResponse(
         Message $received,
-        array $options,
+        CramMD5Options $options,
     ): void {
         if (!$received->has('username')) {
             throw new SaslException('The client response must have a username.');
@@ -114,17 +114,13 @@ final readonly class CramMD5Challenge implements ChallengeInterface
         if (!$received->has('digest')) {
             throw new SaslException('The client response must have a digest.');
         }
-        if (!isset($options['password'])) {
-            throw new SaslException('To validate the client response you must supply the password option.');
+        if ($options->getPasswordCallback() === null) {
+            throw new SaslException('To validate the client response you must supply the passwordCallback option.');
         }
-        $username = $received->get('username');
-        $digest = $received->get('digest');
+        $username = $received->getString('username');
+        $digest = $received->getString('digest');
 
-        $password = $options['password'];
-        if (!is_callable($password)) {
-            throw new SaslException('The password option must be callable. It will be passed the username and challenge');
-        }
-        $expectedDigest = $password($username, $this->context->get('challenge'));
+        $expectedDigest = ($options->getPasswordCallback())($username, $this->context->getString('challenge'));
 
         $this->context->setIsAuthenticated($expectedDigest === $digest);
         $this->context->setIsComplete(true);

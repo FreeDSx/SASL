@@ -17,6 +17,7 @@ use FreeDSx\Sasl\Mechanism\CramMD5Mechanism;
 use FreeDSx\Sasl\Mechanism\DigestMD5Mechanism;
 use FreeDSx\Sasl\Mechanism\MechanismInterface;
 use FreeDSx\Sasl\Mechanism\MechanismName;
+use FreeDSx\Sasl\Options\SaslOptions;
 use FreeDSx\Sasl\Sasl;
 use PHPUnit\Framework\TestCase;
 
@@ -68,7 +69,7 @@ final class SaslTest extends TestCase
 
     public function testSupportedOption(): void
     {
-        $sasl = new Sasl(['supported' => [MechanismName::DIGEST_MD5]]);
+        $sasl = new Sasl(new SaslOptions(supported: [MechanismName::DIGEST_MD5]));
         self::assertCount(1, $sasl->mechanisms());
     }
 

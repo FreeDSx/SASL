@@ -15,6 +15,8 @@ namespace FreeDSx\Sasl\Challenge;
 
 use FreeDSx\Sasl\Encoder\AnonymousEncoder;
 use FreeDSx\Sasl\Message;
+use FreeDSx\Sasl\Options\AnonymousOptions;
+use FreeDSx\Sasl\Options\ChallengeOptionsInterface;
 use FreeDSx\Sasl\SaslContext;
 
 /**
@@ -24,6 +26,8 @@ use FreeDSx\Sasl\SaslContext;
  */
 final readonly class AnonymousChallenge implements ChallengeInterface
 {
+    use ResolvesOptionsTrait;
+
     private readonly SaslContext $context;
 
     private readonly AnonymousEncoder $encoder;
@@ -37,12 +41,17 @@ final readonly class AnonymousChallenge implements ChallengeInterface
 
     public function challenge(
         ?string $received = null,
-        array $options = [],
+        ?ChallengeOptionsInterface $options = null,
     ): SaslContext {
+        $resolved = $this->resolveOptions(
+            $options ?? new AnonymousOptions(),
+            AnonymousOptions::class,
+        );
+
         if ($this->context->isServerMode()) {
             $this->processServer($received);
         } else {
-            $this->processClient($options);
+            $this->processClient($resolved);
         }
 
         return $this->context;
@@ -63,14 +72,11 @@ final readonly class AnonymousChallenge implements ChallengeInterface
         }
     }
 
-    /**
-     * @param array<string, mixed> $options
-     */
-    private function processClient(array $options): void
+    private function processClient(AnonymousOptions $options): void
     {
         $data = [];
-        if (isset($options['username']) || isset($options['trace'])) {
-            $data['trace'] = $options['trace'] ?? $options['username'];
+        if ($options->getTrace() !== null) {
+            $data['trace'] = $options->getTrace();
         }
 
         $this->context->setResponse($this->encoder->encode(new Message($data), $this->context));

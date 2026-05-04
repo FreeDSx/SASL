@@ -72,8 +72,9 @@ final readonly class DigestMD5MessageFactory implements MessageFactoryInterface
     private function generateServerChallenge(array $options): Message
     {
         $challenge = new Message();
+        $nonceSize = is_int($options['nonce_size'] ?? null) ? $options['nonce_size'] : self::NONCE_SIZE;
         $challenge->set('algorithm', 'md5-sess');
-        $challenge->set('nonce', $options['nonce'] ?? $this->generateNonce((int) ($options['nonce_size'] ?? self::NONCE_SIZE)));
+        $challenge->set('nonce', $options['nonce'] ?? $this->generateNonce($nonceSize));
         $challenge->set('qop', $this->generateAvailableQops($options));
         $challenge->set('realm', $options['realm'] ?? $_SERVER['USERDOMAIN'] ?? gethostname());
         $challenge->set('maxbuf', $options['maxbuf'] ?? '65536');
@@ -110,11 +111,12 @@ final readonly class DigestMD5MessageFactory implements MessageFactoryInterface
         Message $challenge,
     ): Message {
         $response = new Message();
-        $qop = isset($options['qop']) ? (string) $options['qop'] : null;
+        $qop = is_string($options['qop'] ?? null) ? $options['qop'] : null;
 
         $response->set('algorithm', 'md5-sess');
         $response->set('nonce', $challenge->get('nonce'));
-        $response->set('cnonce', $options['cnonce'] ?? $this->generateNonce((int) ($options['nonce_size'] ?? self::NONCE_SIZE)));
+        $cnNonceSize = is_int($options['nonce_size'] ?? null) ? $options['nonce_size'] : self::NONCE_SIZE;
+        $response->set('cnonce', $options['cnonce'] ?? $this->generateNonce($cnNonceSize));
         $response->set('nc', $options['nc'] ?? 1);
         $response->set('qop', $this->selectQopFromChallenge($challenge, $qop));
         $response->set('username', $options['username'] ?? $this->getCurrentUser());
@@ -142,8 +144,8 @@ final readonly class DigestMD5MessageFactory implements MessageFactoryInterface
 
         return sprintf(
             '%s/%s',
-            $options['service'],
-            $response->get('realm'),
+            is_string($options['service'] ?? null) ? $options['service'] : '',
+            $response->getString('realm'),
         );
     }
 
@@ -173,7 +175,7 @@ final readonly class DigestMD5MessageFactory implements MessageFactoryInterface
         Message $challenge,
         ?string $qop,
     ): string {
-        $available = (array) ($challenge->get('qop') ?? []);
+        $available = $challenge->getStringArray('qop') ?? [];
         /* Per the RFC: This directive is optional; if not present it defaults to "auth". */
         if (count($available) === 0) {
             return 'auth';
@@ -240,7 +242,7 @@ final readonly class DigestMD5MessageFactory implements MessageFactoryInterface
         if (!$challenge->has('cipher')) {
             throw new SaslException('The client requested auth-conf, but the challenge contains no ciphers.');
         }
-        $ciphers = (array) $challenge->get('cipher');
+        $ciphers = $challenge->getStringArray('cipher') ?? [];
         # If we are requesting a specific cipher, then only check that one...
         $toCheck = isset($options['cipher'])
             ? (array) $options['cipher']
@@ -254,7 +256,7 @@ final readonly class DigestMD5MessageFactory implements MessageFactoryInterface
 
         $selected = null;
         foreach ($toCheck as $selection) {
-            if (in_array($selection, $ciphers, true)) {
+            if (is_string($selection) && in_array($selection, $ciphers, true)) {
                 $selected = $selection;
                 break;
             }
@@ -274,11 +276,11 @@ final readonly class DigestMD5MessageFactory implements MessageFactoryInterface
      */
     private function getCurrentUser(): string
     {
-        if (isset($_SERVER['USERNAME'])) {
-            return (string) $_SERVER['USERNAME'];
+        if (is_string($_SERVER['USERNAME'] ?? null)) {
+            return $_SERVER['USERNAME'];
         }
-        if (isset($_SERVER['USER'])) {
-            return (string) $_SERVER['USER'];
+        if (is_string($_SERVER['USER'] ?? null)) {
+            return $_SERVER['USER'];
         }
 
         throw new SaslException('Unable to determine a username for the response. You must supply a username.');
@@ -291,12 +293,9 @@ final readonly class DigestMD5MessageFactory implements MessageFactoryInterface
      */
     private function getRealmFromChallenge(Message $challenge): string
     {
-        if (!$challenge->has('realm')) {
-            throw new SaslException('Unable to determine a realm for the response.');
-        }
-        $realms = (array) $challenge->get('realm');
-        $selected = array_pop($realms);
-
-        return (string) $selected;
+        return $challenge->getStringOrFail(
+            'realm',
+            'Unable to determine a realm for the response.',
+        );
     }
 }

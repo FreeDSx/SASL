@@ -42,18 +42,18 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
         string $data,
         SaslContext $context,
     ): string {
-        $qop = $context->get('qop');
+        $qop = $context->getString('qop');
 
         $wrapped = match ($qop) {
             'auth-conf' => $this->encrypt($data, $context),
             'auth-int' => $this->sign($data, $context),
             default => throw new SaslException(sprintf(
                 'The qop option "%s" is not recognized as a security layer.',
-                (string) $qop,
+                $qop,
             )),
         };
         $this->validateBufferLength($wrapped, $context);
-        $context->set('seqnumsnt', ((int) $context->get('seqnumsnt')) + 1);
+        $context->set('seqnumsnt', ($context->getInt('seqnumsnt') ?? 0) + 1);
 
         return $wrapped;
     }
@@ -62,7 +62,7 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
         string $data,
         SaslContext $context,
     ): string {
-        $qop = $context->get('qop');
+        $qop = $context->getString('qop');
         $this->validateBufferLength($data, $context);
 
         $unwrapped = match ($qop) {
@@ -70,10 +70,10 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
             'auth-int' => $this->verify($data, $context),
             default => throw new SaslException(sprintf(
                 'The qop option "%s" is not recognized as a security layer.',
-                (string) $qop,
+                $qop,
             )),
         };
-        $context->set('seqnumrcv', ((int) $context->get('seqnumrcv')) + 1);
+        $context->set('seqnumrcv', ($context->getInt('seqnumrcv') ?? 0) + 1);
 
         return $unwrapped;
     }
@@ -97,17 +97,17 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
                 $receivedMsgType,
             ));
         }
-        $seqnum = $context->get('seqnumrcv');
-        if (!is_int($seqnum) || $seqnum !== $receivedSeqNum) {
+        $seqnum = $context->getInt('seqnumrcv');
+        if ($seqnum === null || $seqnum !== $receivedSeqNum) {
             throw new SaslException(sprintf(
                 'The received sequence number was unexpected. Expected %s, but got %s.',
-                (string) $seqnum,
+                $seqnum ?? 'null',
                 (string) $receivedSeqNum,
             ));
         }
 
         $cipher = $this->resolveCipher($context);
-        $a1 = (string) $context->get('a1');
+        $a1 = $context->getString('a1');
         $isServerMode = $context->isServerMode();
         $encrypted = substr($data, 0, -6);
 
@@ -152,9 +152,9 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
         SaslContext $context,
     ): string {
         $cipher = $this->resolveCipher($context);
-        $a1 = (string) $context->get('a1');
+        $a1 = $context->getString('a1');
         $isServerMode = $context->isServerMode();
-        $seqnum = (int) $context->get('seqnumsnt');
+        $seqnum = $context->getInt('seqnumsnt') ?? 0;
 
         $mcKc = $isServerMode ? self::KCS_MC : self::KCC_MC;
         $kc = $this->generateKeyKc($a1, $cipher, $mcKc);
@@ -232,9 +232,9 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
         string $message,
         SaslContext $context,
     ): string {
-        $seqnum = (int) $context->get('seqnumsnt');
+        $seqnum = $context->getInt('seqnumsnt') ?? 0;
         $mc = $context->isServerMode() ? self::KIS_MC : self::KIC_MC;
-        $ki = $this->generateKeyKi((string) $context->get('a1'), $mc);
+        $ki = $this->generateKeyKi($context->getString('a1'), $mc);
         $macBlock = $this->generateMACBlock($ki, $message, $seqnum);
 
         return $message . $macBlock;
@@ -254,11 +254,11 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
             throw new SaslException('Expected at least 16 bytes of data for the MAC.');
         }
 
-        $seqnum = (int) $context->get('seqnumrcv');
+        $seqnum = $context->getInt('seqnumrcv') ?? 0;
         $message = substr($data, 0, -16);
         # Inverted selection of constant here, as this would be the receiving end.
         $mc = $context->isServerMode() ? self::KIC_MC : self::KIS_MC;
-        $ki = $this->generateKeyKi((string) $context->get('a1'), $mc);
+        $ki = $this->generateKeyKi($context->getString('a1'), $mc);
         $expectedMac = $this->generateMACBlock($ki, $message, $seqnum);
 
         if ($receivedMac !== $expectedMac) {
@@ -282,9 +282,9 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
         if ($blockSize === 1) {
             return '';
         }
-        $pad = $blockSize - (strlen($data) + 10) & ($blockSize - 1);
+        $pad = ($blockSize - (strlen($data) + 10)) & ($blockSize - 1);
 
-        return str_repeat(chr($pad), $pad);
+        return str_repeat(chr($pad & 0xFF), $pad);
     }
 
     /**
@@ -384,13 +384,13 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
         }
 
         return chr($bytes[0] & 0xfe)
-            . chr(($bytes[0] << 7) | ($bytes[1] >> 1))
-            . chr(($bytes[1] << 6) | ($bytes[2] >> 2))
-            . chr(($bytes[2] << 5) | ($bytes[3] >> 3))
-            . chr(($bytes[3] << 4) | ($bytes[4] >> 4))
-            . chr(($bytes[4] << 3) | ($bytes[5] >> 5))
-            . chr(($bytes[5] << 2) | ($bytes[6] >> 6))
-            . chr($bytes[6] << 1);
+            . chr((($bytes[0] << 7) | ($bytes[1] >> 1)) & 0xFF)
+            . chr((($bytes[1] << 6) | ($bytes[2] >> 2)) & 0xFF)
+            . chr((($bytes[2] << 5) | ($bytes[3] >> 3)) & 0xFF)
+            . chr((($bytes[3] << 4) | ($bytes[4] >> 4)) & 0xFF)
+            . chr((($bytes[4] << 3) | ($bytes[5] >> 5)) & 0xFF)
+            . chr((($bytes[5] << 2) | ($bytes[6] >> 6)) & 0xFF)
+            . chr(($bytes[6] << 1) & 0xFF);
     }
 
     /**
@@ -400,7 +400,7 @@ final readonly class DigestMD5SecurityLayer implements SecurityLayerInterface
         string $data,
         SaslContext $context,
     ): void {
-        $maxbuf = $context->has('maxbuf') ? (int) $context->get('maxbuf') : self::MAXBUF;
+        $maxbuf = $context->has('maxbuf') ? (int) $context->getString('maxbuf') : self::MAXBUF;
         if (strlen($data) > $maxbuf) {
             throw new SaslException(sprintf(
                 'The wrapped buffer exceeds the maxbuf length of %s',

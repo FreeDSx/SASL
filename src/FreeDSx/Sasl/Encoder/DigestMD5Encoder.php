@@ -71,13 +71,13 @@ final class DigestMD5Encoder implements EncoderInterface
         SaslContext $context,
     ): string {
         $response = '';
-        foreach ($message->toArray() as $key => $value) {
+        foreach (array_keys($message->toArray()) as $key) {
             if ($response !== '') {
                 $response .= ',';
             }
             $response .= $key . '=' . $this->encodeOptValue(
-                (string) $key,
-                $value,
+                $key,
+                $message,
                 $context->isServerMode(),
             );
         }
@@ -176,20 +176,20 @@ final class DigestMD5Encoder implements EncoderInterface
      */
     private function encodeOptValue(
         string $name,
-        mixed $value,
+        Message $message,
         bool $isServerMode,
     ): string {
         return match ($name) {
             'realm', 'nonce', 'username', 'cnonce', 'authzid', 'digest-uri'
-                => '"' . str_replace(['\\', '"'], ['\\\\', '\"'], (string) $value) . '"',
+                => '"' . str_replace(['\\', '"'], ['\\\\', '\"'], $message->getString($name)) . '"',
             'qop', 'cipher'
                 => $isServerMode
-                    ? '"' . implode(',', (array) $value) . '"'
-                    : (string) $value,
+                    ? '"' . implode(',', $message->getStringArray($name) ?? []) . '"'
+                    : $message->getString($name),
             'stale' => 'true',
-            'maxbuf', 'algorithm', 'charset' => (string) $value,
-            'nc' => str_pad(dechex((int) $value), 8, '0', STR_PAD_LEFT),
-            'response', 'rspauth' => $this->encodeLHexValue((string) $value, 32),
+            'maxbuf', 'algorithm', 'charset' => $message->getString($name),
+            'nc' => str_pad(dechex($message->getInt($name) ?? 0), 8, '0', STR_PAD_LEFT),
+            'response', 'rspauth' => $this->encodeLHexValue($message->getString($name), 32),
             default => throw new SaslEncodingException(sprintf(
                 'Digest option %s is not supported.',
                 $name,

@@ -9,6 +9,7 @@ CHANGELOG
 * Replace SCRAM hash-algorithm string constants with the `HashAlgorithm` enum.
 * Replace DIGEST-MD5 message-type integer constants with the `DigestMD5MessageType` enum.
 * Replace DIGEST-MD5 cipher string keys with the `DigestMD5Cipher` enum.
+* Replace all `array $options` parameters with typed options DTOs (see UPGRADE-1.0.md).
 
 0.2.1 (2026-03-22)
 ------------------

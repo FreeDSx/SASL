@@ -18,6 +18,8 @@ use FreeDSx\Sasl\Exception\SaslException;
 use FreeDSx\Sasl\Factory\NonceTrait;
 use FreeDSx\Sasl\Mechanism\HashAlgorithm;
 use FreeDSx\Sasl\Message;
+use FreeDSx\Sasl\Options\ChallengeOptionsInterface;
+use FreeDSx\Sasl\Options\ScramOptions;
 use FreeDSx\Sasl\SaslContext;
 use FreeDSx\Sasl\SaslPrep;
 
@@ -41,6 +43,7 @@ use FreeDSx\Sasl\SaslPrep;
 final readonly class ScramChallenge implements ChallengeInterface
 {
     use NonceTrait;
+    use ResolvesOptionsTrait;
 
     /**
      * Default nonce size in bytes. Produces ~32 base64 characters; well above the RFC 5802 minimum.
@@ -121,15 +124,20 @@ final readonly class ScramChallenge implements ChallengeInterface
 
     public function challenge(
         ?string $received = null,
-        array $options = [],
+        ?ChallengeOptionsInterface $options = null,
     ): SaslContext {
+        $resolved = $this->resolveOptions(
+            $options ?? new ScramOptions(),
+            ScramOptions::class,
+        );
+
         # Keep the raw received string for auth-message construction before decoding.
         $rawReceived = $received;
         $message = $received !== null ? $this->encoder->decode($received, $this->context) : null;
 
         $response = $this->context->isServerMode()
-            ? $this->generateServerResponse($message, $rawReceived, $options)
-            : $this->generateClientResponse($message, $rawReceived, $options);
+            ? $this->generateServerResponse($message, $rawReceived, $resolved)
+            : $this->generateClientResponse($message, $rawReceived, $resolved);
 
         $this->context->setResponse($response);
 
@@ -137,14 +145,12 @@ final readonly class ScramChallenge implements ChallengeInterface
     }
 
     /**
-     * @param array<string, mixed> $options
-     *
      * @throws SaslException
      */
     private function generateClientResponse(
         ?Message $received,
         ?string $rawReceived,
-        array $options,
+        ScramOptions $options,
     ): ?string {
         # Step 1: No message yet — generate client-first-message.
         if ($received === null) {
@@ -167,14 +173,12 @@ final readonly class ScramChallenge implements ChallengeInterface
     }
 
     /**
-     * @param array<string, mixed> $options
-     *
      * @throws SaslException
      */
     private function generateServerResponse(
         ?Message $received,
         ?string $rawReceived,
-        array $options,
+        ScramOptions $options,
     ): ?string {
         # SCRAM is client-initiated — the server has no opening message.
         if ($received === null) {
@@ -195,24 +199,22 @@ final readonly class ScramChallenge implements ChallengeInterface
     }
 
     /**
-     * @param array{username?: string, cnonce?: string, cbind_type?: string} $options
-     *
      * @throws SaslException
      */
-    private function generateClientFirst(array $options): string
+    private function generateClientFirst(ScramOptions $options): string
     {
-        $username = $options['username'] ?? null;
+        $username = $options->getUsername();
         if ($username === null) {
             throw new SaslException('A username is required to initiate SCRAM authentication.');
         }
 
-        $cnonce = $options['cnonce'] ?? $this->generateNonce(self::NONCE_SIZE);
+        $cnonce = $options->getCnonce() ?? $this->generateNonce(self::NONCE_SIZE);
         if ($cnonce === '') {
             throw new SaslException('The client nonce must not be empty.');
         }
 
         if ($this->isChannelBinding) {
-            $cbindType = $options['cbind_type'] ?? 'tls-unique';
+            $cbindType = $options->getCbindType() ?? 'tls-unique';
             $this->validateCbindType($cbindType);
             $gs2Header = 'p=' . $cbindType . ',,';
         } else {
@@ -235,41 +237,36 @@ final readonly class ScramChallenge implements ChallengeInterface
     }
 
     /**
-     * @param array{password?: string, cbind_data?: string} $options
-     *
      * @throws SaslException
      */
     private function generateClientFinal(
         Message $serverFirst,
         string $rawServerFirst,
-        array $options,
+        ScramOptions $options,
     ): string {
-        $password = $options['password'] ?? null;
+        $password = $options->getPassword();
         if ($password === null) {
             throw new SaslException('A password is required to complete SCRAM authentication.');
         }
 
         # Guard against out-of-order calls: client-first must have run first to populate the cnonce.
-        $cnonce = $this->context->get(self::CTX_CNONCE);
-        if ($cnonce === null) {
-            throw new SaslException(
-                'client-final called before client-first: no client nonce found in context.',
-            );
-        }
-        $cnonce = (string) $cnonce;
+        $cnonce = $this->context->getStringOrFail(
+            self::CTX_CNONCE,
+            'client-final called before client-first: no client nonce found in context.',
+        );
 
         # The full nonce must begin with the client nonce we sent — verify before processing anything else.
         [$fullNonce, $salt, $iterations] = $this->parseServerFirst($serverFirst, $cnonce);
 
         # Channel binding value: base64(gs2-header + cbind-data).
-        $gs2Header = (string) $this->context->get(self::CTX_GS2_HEADER);
-        $cbindData = $options['cbind_data'] ?? '';
+        $gs2Header = $this->context->getString(self::CTX_GS2_HEADER);
+        $cbindData = $options->getCbindData() ?? '';
         $channelBinding = base64_encode($gs2Header . $cbindData);
 
         $clientFinalWithoutProof = 'c=' . $channelBinding . ',r=' . $fullNonce;
 
         # RFC 5802 §3: AuthMessage = client-first-bare "," server-first "," client-final-without-proof
-        $authMessage = $this->context->get(self::CTX_CLIENT_FIRST_BARE)
+        $authMessage = $this->context->getString(self::CTX_CLIENT_FIRST_BARE)
             . ',' . $rawServerFirst
             . ',' . $clientFinalWithoutProof;
 
@@ -297,12 +294,12 @@ final readonly class ScramChallenge implements ChallengeInterface
         if ($serverFinal->has('e')) {
             throw new SaslException(sprintf(
                 'SCRAM authentication failed with server error: %s',
-                $serverFinal->get('e'),
+                $serverFinal->getString('e'),
             ));
         }
 
-        $expectedSig = (string) $this->context->get(self::CTX_SERVER_SIGNATURE);
-        $receivedSig = (string) $serverFinal->get('v');
+        $expectedSig = $this->context->getString(self::CTX_SERVER_SIGNATURE);
+        $receivedSig = $serverFinal->getString('v');
 
         if (!hash_equals($expectedSig, $receivedSig)) {
             throw new SaslException('The server signature does not match the expected value.');
@@ -312,21 +309,19 @@ final readonly class ScramChallenge implements ChallengeInterface
     }
 
     /**
-     * @param array{nonce?: string, salt?: string, iterations?: int} $options
-     *
      * @throws SaslException
      */
     private function generateServerFirst(
         Message $clientFirst,
         string $rawClientFirst,
-        array $options,
+        ScramOptions $options,
     ): string {
-        $cnonce = (string) $clientFirst->get('r');
-        $snonce = $options['nonce'] ?? $this->generateNonce(self::NONCE_SIZE);
+        $cnonce = $clientFirst->getString('r');
+        $snonce = $options->getNonce() ?? $this->generateNonce(self::NONCE_SIZE);
         $fullNonce = $cnonce . $snonce;
 
-        $salt = $options['salt'] ?? random_bytes(16);
-        $iterations = (int) ($options['iterations'] ?? self::DEFAULT_ITERATIONS[$this->hashAlgorithm->value]);
+        $salt = $options->getSalt() ?? random_bytes(16);
+        $iterations = $options->getIterations() ?? self::DEFAULT_ITERATIONS[$this->hashAlgorithm->value];
         if ($iterations < 1) {
             throw new SaslException('The iteration count must be greater than zero.');
         }
@@ -353,33 +348,32 @@ final readonly class ScramChallenge implements ChallengeInterface
     /**
      * Returns 'v=<server-signature>' on success, or 'e=<error>' on failure.
      *
-     * @param array{password?: string} $options
-     *
      * @throws SaslException
      */
     private function generateServerFinal(
         Message $clientFinal,
-        array $options,
+        ScramOptions $options,
     ): string {
         $this->context->setIsComplete(true);
 
-        $password = $options['password'] ?? null;
+        $password = $options->getPassword();
         if ($password === null) {
             return self::INVALID_PROOF;
         }
 
-        $fullNonce = (string) $this->context->get(self::CTX_NONCE);
-        if ($clientFinal->get('r') !== $fullNonce) {
+        $fullNonce = $this->context->getString(self::CTX_NONCE);
+        $clientNonce = $clientFinal->getString('r');
+        if ($clientNonce !== $fullNonce) {
             return self::INVALID_PROOF;
         }
 
-        $salt = (string) $this->context->get(self::CTX_SALT);
-        $iterations = (int) $this->context->get(self::CTX_ITERATIONS);
+        $salt = $this->context->getString(self::CTX_SALT);
+        $iterations = $this->context->getInt(self::CTX_ITERATIONS) ?? 1;
 
         # RFC 5802: client-final-without-proof = c=...,r=...[,extensions] — fixed order, safely rebuildable.
-        $clientFinalWithoutProof = 'c=' . $clientFinal->get('c') . ',r=' . $clientFinal->get('r');
-        $authMessage = $this->context->get(self::CTX_CLIENT_FIRST_BARE)
-            . ',' . $this->context->get(self::CTX_SERVER_FIRST)
+        $clientFinalWithoutProof = 'c=' . $clientFinal->getString('c') . ',r=' . $clientNonce;
+        $authMessage = $this->context->getString(self::CTX_CLIENT_FIRST_BARE)
+            . ',' . $this->context->getString(self::CTX_SERVER_FIRST)
             . ',' . $clientFinalWithoutProof;
 
         try {
@@ -434,20 +428,20 @@ final readonly class ScramChallenge implements ChallengeInterface
         Message $serverFirst,
         string $cnonce,
     ): array {
-        $fullNonce = (string) $serverFirst->get('r');
+        $fullNonce = $serverFirst->getString('r');
         if (strncmp($fullNonce, $cnonce, strlen($cnonce)) !== 0) {
             throw new SaslException('The server nonce does not begin with the client nonce.');
         }
 
         $salt = base64_decode(
-            (string) $serverFirst->get('s'),
+            $serverFirst->getString('s'),
             true,
         );
         if ($salt === false) {
             throw new SaslException('The server-provided salt is not valid base64.');
         }
 
-        $iterations = (int) $serverFirst->get('i');
+        $iterations = $serverFirst->getIntOrParse('i') ?? 0;
         $minIterations = self::MIN_ITERATIONS[$this->hashAlgorithm->value];
         if ($iterations < $minIterations) {
             throw new SaslException(sprintf(
@@ -504,7 +498,7 @@ final readonly class ScramChallenge implements ChallengeInterface
             $authMessage,
         );
         $receivedProof = base64_decode(
-            (string) $clientFinal->get('p'),
+            $clientFinal->getString('p'),
             true,
         );
 
@@ -526,7 +520,7 @@ final readonly class ScramChallenge implements ChallengeInterface
             $this->hashAlgorithm->value,
             $password,
             $salt,
-            $iterations,
+            max(1, $iterations),
             0,
             true,
         );
