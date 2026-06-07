@@ -9,3 +9,7 @@ Install via composer:
 ```bash
 composer require freedsx/sasl
 ```
+
+# Documentation
+
+See [SASL Mechanisms](docs/Mechanisms.md) for the supported mechanisms, their options, and usage.
