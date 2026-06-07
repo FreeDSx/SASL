@@ -1,20 +1,38 @@
 # SASL Mechanisms
 
-This library provides the following SASL mechanisms. All mechanisms are registered by default; use the `supported` option to restrict which are available.
+This library provides the following SASL mechanisms. All mechanisms are registered by default; pass a `SaslOptions` with a `supported` list to restrict which are available.
+
+Per-mechanism settings are configured with a typed options object from `FreeDSx\Sasl\Options\*`, passed to `challenge()`.
 
 ```php
+use FreeDSx\Sasl\Mechanism\MechanismName;
+use FreeDSx\Sasl\Options\SaslOptions;
 use FreeDSx\Sasl\Sasl;
 
 $sasl = new Sasl();
 
 // Restrict to specific mechanisms
-$sasl = new Sasl(['supported' => ['SCRAM-SHA-256', 'PLAIN']]);
+$sasl = new Sasl(new SaslOptions(supported: [
+    MechanismName::SCRAM_SHA256,
+    MechanismName::PLAIN,
+]));
 
 // Get a specific mechanism
-$mechanism = $sasl->get('SCRAM-SHA-256');
+$mechanism = $sasl->get(MechanismName::SCRAM_SHA256);
 
 // Select the best mechanism from a server-advertised list
-$mechanism = $sasl->select(['SCRAM-SHA-256', 'PLAIN', 'DIGEST-MD5']);
+$mechanism = $sasl->select([
+    MechanismName::SCRAM_SHA256,
+    MechanismName::PLAIN,
+    MechanismName::DIGEST_MD5,
+]);
+```
+
+Each mechanism exposes a challenge object for the client or the server:
+
+```php
+$challenge = $mechanism->challenge();                 // client mode
+$challenge = $mechanism->challenge(serverMode: true); // server mode
 ```
 
 ---
@@ -25,18 +43,61 @@ No authentication. Sends optional trace information to the server.
 
 **Security:** No integrity, no privacy, no authentication.
 
-**Client options:**
+**Client options** (`AnonymousOptions`):
 
-| Option     | Default | Description                              |
-|------------|---------|------------------------------------------|
-| `username` | `null`  | Optional trace string sent to the server |
+| Setter             | Default | Description                              |
+|--------------------|---------|------------------------------------------|
+| `setTrace(string)` | `null`  | Optional trace string sent to the server |
 
 ```php
-$challenge = $mechanism->challenge();
+use FreeDSx\Sasl\Options\AnonymousOptions;
 
+$challenge = $mechanism->challenge();
 $response = $challenge->challenge(
     null,
-    ['username' => 'guest@example.com']
+    (new AnonymousOptions())->setTrace('guest@example.com'),
+);
+
+// $response->isComplete() === true after one round
+```
+
+---
+
+## EXTERNAL
+
+The identity is established at a lower layer (e.g. a TLS client certificate); the SASL exchange carries no credential of its own. A single client-first round with an optional authorization identity (authzId). The server derives the identity from the lower-layer credential and validates via a callback.
+
+**Security:** Authenticates using credentials established externally (e.g. TLS). Provides no integrity or privacy layer itself — the lower layer does.
+
+**Client options** (`ExternalOptions`):
+
+| Setter                | Default | Description                                |
+|-----------------------|---------|--------------------------------------------|
+| `setAuthzId(?string)` | `null`  | Optional authorization identity to request |
+
+**Server options** (`ExternalOptions`):
+
+| Setter                 | Default      | Description                       |
+|------------------------|--------------|-----------------------------------|
+| `setValidate(Closure)` | *(required)* | `Closure(?string $authzId): bool` |
+
+```php
+use FreeDSx\Sasl\Options\ExternalOptions;
+
+// Client (optionally request an authzId)
+$challenge = $mechanism->challenge();
+$response = $challenge->challenge(
+    null,
+    (new ExternalOptions())->setAuthzId('dn:cn=user'),
+);
+
+// Server (the credential comes from the lower layer; validate the optional authzId)
+$challenge = $mechanism->challenge(serverMode: true);
+$response = $challenge->challenge(
+    $received,
+    (new ExternalOptions())->setValidate(
+        fn (?string $authzId): bool => authorizeExternalIdentity($authzId),
+    ),
 );
 
 // $response->isComplete() === true after one round
@@ -50,101 +111,126 @@ Sends credentials as plaintext. Use only over TLS.
 
 **Security:** Authenticates but transmits password in plaintext.
 
-**Client options:**
+**Client options** (`PlainOptions`):
 
-| Option     | Default      | Description             |
-|------------|--------------|-------------------------|
-| `username` | *(required)* | Authentication identity |
-| `password` | *(required)* | User password           |
+| Setter                | Default      | Description             |
+|-----------------------|--------------|-------------------------|
+| `setUsername(string)` | *(required)* | Authentication identity |
+| `setPassword(string)` | *(required)* | User password           |
 
-**Server options:**
+**Server options** (`PlainOptions`):
 
-| Option     | Default      | Description                                                          |
-|------------|--------------|----------------------------------------------------------------------|
-| `validate` | *(required)* | `callable(string $authzid, string $authcid, string $password): bool` |
+| Setter                 | Default      | Description                                                           |
+|------------------------|--------------|----------------------------------------------------------------------|
+| `setValidate(Closure)` | *(required)* | `Closure(?string $authzId, string $authcId, string $password): bool` |
 
 ```php
+use FreeDSx\Sasl\Options\PlainOptions;
+
 // Client
-$response = $challenge->challenge(null, [
-    'username' => 'user',
-    'password' => 'secret',
-]);
+$challenge = $mechanism->challenge();
+$response = $challenge->challenge(
+    null,
+    (new PlainOptions())
+        ->setUsername('user')
+        ->setPassword('secret'),
+);
 
 // Server
-$response = $challenge->challenge($received, [
-    'validate' => fn($authzid, $authcid, $password) => $password === getPassword($authcid),
-]);
+$challenge = $mechanism->challenge(serverMode: true);
+$response = $challenge->challenge(
+    $received,
+    (new PlainOptions())->setValidate(
+        fn (?string $authzId, string $authcId, string $password): bool => $password === getPassword($authcId),
+    ),
+);
 ```
 
 ---
 
 ## CRAM-MD5
 
+> [!WARNING]
+> CRAM-MD5 is included for legacy interoperability only. It relies on MD5 and offers no mutual authentication or security layer. Prefer a SCRAM-SHA-* mechanism for new integrations.
+
 Server sends a challenge; a client responds with an HMAC-MD5 digest. Two-round exchange.
 
 **Security:** Authenticates without transmitting the password in plaintext.
 
-**Client options:**
+**Client options** (`CramMD5Options`):
 
-| Option     | Default      | Description   |
-|------------|--------------|---------------|
-| `username` | *(required)* | Username      |
-| `password` | *(required)* | User password |
+| Setter                | Default      | Description   |
+|-----------------------|--------------|---------------|
+| `setUsername(string)` | *(required)* | Username      |
+| `setPassword(string)` | *(required)* | User password |
 
-**Server options:**
+**Server options** (`CramMD5Options`):
 
-| Option      | Default              | Description                                                                       |
-|-------------|----------------------|-----------------------------------------------------------------------------------|
-| `challenge` | random 32-byte nonce | Override the server challenge string                                              |
-| `password`  | *(required)*         | `callable(string $username, string $challenge): string` — returns expected digest |
+| Setter                         | Default              | Description                                                               |
+|--------------------------------|----------------------|--------------------------------------------------------------------------|
+| `setChallenge(string)`         | random 32-byte nonce | Override the server challenge string                                      |
+| `setPasswordCallback(Closure)` | *(required)*         | `Closure(string $username, string $challenge): string` — expected digest |
 
 ```php
+use FreeDSx\Sasl\Options\CramMD5Options;
+
 // Client (round 1: receive challenge, round 2: send response)
-$response = $challenge->challenge($serverChallenge, [
-    'username' => 'user',
-    'password' => 'secret',
-]);
+$challenge = $mechanism->challenge();
+$response = $challenge->challenge(
+    $serverChallenge,
+    (new CramMD5Options())
+        ->setUsername('user')
+        ->setPassword('secret'),
+);
 ```
 
 ---
 
 ## DIGEST-MD5
 
+> [!WARNING]
+> DIGEST-MD5 is included for legacy interoperability only. RFC 2831 has been obsoleted (RFC 6331) and the mechanism relies on MD5. Prefer a SCRAM-SHA-* mechanism for new integrations.
+
 Multi-round MD5-based authentication with optional integrity and privacy security layers. Implements RFC 2831.
 
 **Security:** Authenticates without plaintext password. Optionally provides integrity (`auth-int`) or privacy (`auth-conf`) security layers.
 
-**Client options:**
+**Client options** (`DigestMD5Options`):
 
-| Option          | Default      | Description                                       |
-|-----------------|--------------|---------------------------------------------------|
-| `username`      | *(required)* | Username                                          |
-| `password`      | *(required)* | User password                                     |
-| `host`          | `null`       | Hostname for the digest-uri                       |
-| `realm`         | `null`       | Authentication realm                              |
-| `use_integrity` | `false`      | Enable integrity layer (`qop=auth-int`)           |
-| `use_privacy`   | `false`      | Enable privacy/encryption layer (`qop=auth-conf`) |
-| `service`       | `'ldap'`     | SASL service name                                 |
-| `cnonce`        | random       | Client nonce                                      |
-| `cipher`        | auto         | Cipher for privacy (e.g. `'rc4'`, `'3des'`)       |
+| Setter                  | Default      | Description                                       |
+|-------------------------|--------------|---------------------------------------------------|
+| `setUsername(string)`   | *(required)* | Username                                          |
+| `setPassword(string)`   | *(required)* | User password                                     |
+| `setHost(string)`       | `null`       | Hostname for the digest-uri                       |
+| `setRealm(string)`      | `null`       | Authentication realm                              |
+| `setUseIntegrity(bool)` | `false`      | Enable integrity layer (`qop=auth-int`)           |
+| `setUsePrivacy(bool)`   | `false`      | Enable privacy/encryption layer (`qop=auth-conf`) |
+| `setService(string)`    | `'ldap'`     | SASL service name                                 |
+| `setCnonce(string)`     | random       | Client nonce                                      |
+| `setCipher(string)`     | auto         | Cipher for privacy (e.g. `'rc4'`, `'3des'`)       |
 
-**Server options:**
+**Server options** (`DigestMD5Options`):
 
-| Option          | Default      | Description                              |
-|-----------------|--------------|------------------------------------------|
-| `validate`      | *(required)* | Callable to validate the client response |
-| `use_integrity` | `false`      | Offer integrity layer                    |
-| `use_privacy`   | `false`      | Offer privacy layer                      |
-| `service`       | `'ldap'`     | SASL service name                        |
-| `nonce`         | random       | Override the server nonce                |
+| Setter                  | Default      | Description                                       |
+|-------------------------|--------------|---------------------------------------------------|
+| `setPassword(string)`   | *(required)* | User password used to verify the client response  |
+| `setUseIntegrity(bool)` | `false`      | Offer integrity layer                             |
+| `setUsePrivacy(bool)`   | `false`      | Offer privacy layer                              |
+| `setService(string)`    | `'ldap'`     | SASL service name                                 |
+| `setNonce(string)`      | random       | Override the server nonce                         |
 
 ```php
-$response = $challenge->challenge($serverMessage, [
-    'username' => 'user',
-    'password' => 'secret',
-    'host'     => 'ldap.example.com',
-    'service'  => 'ldap',
-]);
+use FreeDSx\Sasl\Options\DigestMD5Options;
+
+$challenge = $mechanism->challenge();
+$response = $challenge->challenge(
+    $serverMessage,
+    (new DigestMD5Options())
+        ->setUsername('user')
+        ->setPassword('secret')
+        ->setHost('ldap.example.com')
+        ->setService('ldap'),
+);
 ```
 
 ---
@@ -172,55 +258,58 @@ Modern salted challenge-response mechanisms using PBKDF2 key derivation and HMAC
 
 **Security:** Authenticates without transmitting the password. Resistant to replay and server-impersonation attacks. Use `-PLUS` variants with TLS channel binding for the strongest guarantee.
 
-### Client options
+### Client options (`ScramOptions`)
 
 **Round 1 (client-first):**
 
-| Option       | Default         | Description                                     |
-|--------------|-----------------|-------------------------------------------------|
-| `username`   | *(required)*    | Username (`=` and `,` are encoded per RFC 5802) |
-| `cnonce`     | 24 random bytes | Client nonce                                    |
-| `cbind_type` | `'tls-unique'`  | Channel binding type (for `-PLUS` variants)     |
+| Setter                 | Default         | Description                                     |
+|------------------------|-----------------|-------------------------------------------------|
+| `setUsername(string)`  | *(required)*    | Username (`=` and `,` are encoded per RFC 5802) |
+| `setCnonce(string)`    | 24 random bytes | Client nonce                                    |
+| `setCbindType(string)` | `'tls-unique'`  | Channel binding type (for `-PLUS` variants)     |
 
 **Round 2 (client-final):**
 
-| Option       | Default      | Description                                     |
-|--------------|--------------|-------------------------------------------------|
-| `password`   | *(required)* | User password                                   |
-| `cbind_data` | `''`         | Raw channel binding data (for `-PLUS` variants) |
+| Setter                 | Default      | Description                                     |
+|------------------------|--------------|-------------------------------------------------|
+| `setPassword(string)`  | *(required)* | User password                                   |
+| `setCbindData(string)` | `''`         | Raw channel binding data (for `-PLUS` variants) |
 
-### Server options
+### Server options (`ScramOptions`)
 
 **Round 1 (server-first):**
 
-| Option       | Default         | Description                          |
-|--------------|-----------------|--------------------------------------|
-| `nonce`      | 24 random bytes | Server portion of the combined nonce |
-| `salt`       | 16 random bytes | PBKDF2 salt (raw binary)             |
-| `iterations` | `4096`          | PBKDF2 iteration count               |
+| Setter                | Default         | Description                          |
+|-----------------------|-----------------|--------------------------------------|
+| `setNonce(string)`    | 24 random bytes | Server portion of the combined nonce |
+| `setSalt(string)`     | 16 random bytes | PBKDF2 salt (raw binary)             |
+| `setIterations(int)`  | `4096`          | PBKDF2 iteration count               |
 
 **Round 2 (server-final):**
 
-| Option     | Default      | Description                              |
-|------------|--------------|------------------------------------------|
-| `password` | *(required)* | User password to verify the client proof |
+| Setter                | Default      | Description                              |
+|-----------------------|--------------|------------------------------------------|
+| `setPassword(string)` | *(required)* | User password to verify the client proof |
 
 ### Example (client)
 
 ```php
-$mechanism = $sasl->get('SCRAM-SHA-256');
+use FreeDSx\Sasl\Mechanism\MechanismName;
+use FreeDSx\Sasl\Options\ScramOptions;
+
+$mechanism = $sasl->get(MechanismName::SCRAM_SHA256);
 $challenge = $mechanism->challenge();
 
 // Round 1: send client-first message
-$response = $challenge->challenge(null, ['username' => 'user']);
-$clientFirst = $response->get('response');
+$response = $challenge->challenge(null, (new ScramOptions())->setUsername('user'));
+$clientFirst = $response->getResponse();
 
 // Round 2: receive server-first, send client-final with password
-$response = $challenge->challenge($serverFirst, ['password' => 'secret']);
-$clientFinal = $response->get('response');
+$response = $challenge->challenge($serverFirst, (new ScramOptions())->setPassword('secret'));
+$clientFinal = $response->getResponse();
 
 // Round 3: receive server-final, verify server signature
-$response = $challenge->challenge($serverFinal, []);
+$response = $challenge->challenge($serverFinal);
 // $response->isComplete() === true
 ```
 
@@ -231,6 +320,7 @@ $response = $challenge->challenge($serverFinal, []);
 | Mechanism   | Authentication | Integrity Layer | Privacy Layer | Plaintext Password |
 |-------------|:--------------:|:---------------:|:-------------:|:------------------:|
 | ANONYMOUS   |       No       |       No        |      No       |         No         |
+| EXTERNAL    | Yes (external) |       No        |      No       |         No         |
 | PLAIN       |      Yes       |       No        |      No       |      **Yes**       |
 | CRAM-MD5    |      Yes       |       No        |      No       |         No         |
 | DIGEST-MD5  |      Yes       |    Optional     |   Optional    |         No         |
