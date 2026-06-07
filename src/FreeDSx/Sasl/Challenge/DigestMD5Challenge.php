@@ -253,12 +253,12 @@ final class DigestMD5Challenge implements ChallengeInterface
             DigestMD5MessageType::SERVER_CHALLENGE,
             [
                 'use_integrity' => $options->isUseIntegrity(),
-                'use_privacy'   => $options->isUsePrivacy(),
-                'nonce'         => $options->getNonce(),
-                'nonce_size'    => $options->getNonceSize(),
-                'realm'         => $options->getRealm(),
-                'maxbuf'        => $options->getMaxbuf(),
-                'cipher'        => $options->getCipher(),
+                'use_privacy' => $options->isUsePrivacy(),
+                'nonce' => $options->getNonce(),
+                'nonce_size' => $options->getNonceSize(),
+                'realm' => $options->getRealm(),
+                'maxbuf' => $options->getMaxbuf(),
+                'cipher' => $options->getCipher(),
             ],
         );
 

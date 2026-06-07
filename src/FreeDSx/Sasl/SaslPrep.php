@@ -34,13 +34,13 @@ final class SaslPrep
      * C.2.1 and C.2.2 share the 'control' group since they produce the same error.
      */
     private const PROHIBITED_ERRORS = [
-        'control'   => self::ERR_CONTROL_CHAR,
-        'private'   => self::ERR_PRIVATE_USE,
-        'nonchar'   => self::ERR_NON_CHARACTER,
+        'control' => self::ERR_CONTROL_CHAR,
+        'private' => self::ERR_PRIVATE_USE,
+        'nonchar' => self::ERR_NON_CHARACTER,
         'plaintext' => self::ERR_PLAIN_TEXT,
         'canonical' => self::ERR_CANONICAL,
-        'display'   => self::ERR_DISPLAY_PROP,
-        'tagging'   => self::ERR_TAGGING,
+        'display' => self::ERR_DISPLAY_PROP,
+        'tagging' => self::ERR_TAGGING,
     ];
 
     /**
@@ -119,19 +119,19 @@ final class SaslPrep
         "\u{3000}", // IDEOGRAPHIC SPACE
     ];
 
-    private const ERR_CONTROL_CHAR   = 'String contains a prohibited control character.';
+    private const ERR_CONTROL_CHAR = 'String contains a prohibited control character.';
 
-    private const ERR_PRIVATE_USE    = 'String contains a prohibited private use character.';
+    private const ERR_PRIVATE_USE = 'String contains a prohibited private use character.';
 
-    private const ERR_NON_CHARACTER  = 'String contains a prohibited non-character code point.';
+    private const ERR_NON_CHARACTER = 'String contains a prohibited non-character code point.';
 
-    private const ERR_PLAIN_TEXT     = 'String contains a character inappropriate for plain text.';
+    private const ERR_PLAIN_TEXT = 'String contains a character inappropriate for plain text.';
 
-    private const ERR_CANONICAL      = 'String contains a character inappropriate for canonical representation.';
+    private const ERR_CANONICAL = 'String contains a character inappropriate for canonical representation.';
 
-    private const ERR_DISPLAY_PROP   = 'String contains a deprecated or display-property-altering character.';
+    private const ERR_DISPLAY_PROP = 'String contains a deprecated or display-property-altering character.';
 
-    private const ERR_TAGGING        = 'String contains a prohibited tagging character.';
+    private const ERR_TAGGING = 'String contains a prohibited tagging character.';
 
     /**
      * Prepares a string according to the SASLprep profile (RFC 4013).

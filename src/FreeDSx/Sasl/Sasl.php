@@ -17,6 +17,7 @@ use FreeDSx\Sasl\Exception\SaslException;
 use FreeDSx\Sasl\Mechanism\AnonymousMechanism;
 use FreeDSx\Sasl\Mechanism\CramMD5Mechanism;
 use FreeDSx\Sasl\Mechanism\DigestMD5Mechanism;
+use FreeDSx\Sasl\Mechanism\ExternalMechanism;
 use FreeDSx\Sasl\Mechanism\MechanismInterface;
 use FreeDSx\Sasl\Mechanism\MechanismName;
 use FreeDSx\Sasl\Mechanism\PlainMechanism;
@@ -93,6 +94,7 @@ final class Sasl implements SaslInterface
             MechanismName::CRAM_MD5->value => new CramMD5Mechanism(),
             MechanismName::PLAIN->value => new PlainMechanism(),
             MechanismName::ANONYMOUS->value => new AnonymousMechanism(),
+            MechanismName::EXTERNAL->value => new ExternalMechanism(),
         ];
 
         foreach (MechanismName::cases() as $case) {

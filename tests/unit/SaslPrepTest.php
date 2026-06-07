@@ -72,33 +72,33 @@ final class SaslPrepTest extends TestCase
     {
         return [
             // C.2.1 — ASCII control characters
-            'null byte (U+0000)'        => ["pass\x00word"],
-            'unit separator (U+001F)'   => ["pass\x1Fword"],
+            'null byte (U+0000)' => ["pass\x00word"],
+            'unit separator (U+001F)' => ["pass\x1Fword"],
             'delete character (U+007F)' => ["pass\x7Fword"],
 
             // C.2.2 — Non-ASCII control characters (C1 range)
             'first C1 control (U+0080)' => ["pass\u{0080}word"],
-            'last C1 control (U+009F)'  => ["pass\u{009F}word"],
+            'last C1 control (U+009F)' => ["pass\u{009F}word"],
 
             // C.3 — Private use characters
             'first BMP private use (U+E000)' => ["pass\u{E000}word"],
-            'last BMP private use (U+F8FF)'  => ["pass\u{F8FF}word"],
+            'last BMP private use (U+F8FF)' => ["pass\u{F8FF}word"],
 
             // C.4 — Non-character code points
             'first non-character in FDD0-FDEF block (U+FDD0)' => ["pass\u{FDD0}word"],
-            'non-character U+FFFE'                            => ["pass\u{FFFE}word"],
-            'non-character U+FFFF'                            => ["pass\u{FFFF}word"],
+            'non-character U+FFFE' => ["pass\u{FFFE}word"],
+            'non-character U+FFFF' => ["pass\u{FFFF}word"],
 
             // C.6 — Inappropriate for plain text
             'interlinear annotation anchor (U+FFF9)' => ["pass\u{FFF9}word"],
-            'replacement character (U+FFFD)'         => ["pass\u{FFFD}word"],
+            'replacement character (U+FFFD)' => ["pass\u{FFFD}word"],
 
             // C.7 — Inappropriate for canonical representation
             'ideographic description character left-to-right (U+2FF0)' => ["pass\u{2FF0}word"],
 
             // C.8 — Change display properties or deprecated
-            'left-to-right mark (U+200E)'     => ["pass\u{200E}word"],
-            'right-to-left mark (U+200F)'     => ["pass\u{200F}word"],
+            'left-to-right mark (U+200E)' => ["pass\u{200E}word"],
+            'right-to-left mark (U+200F)' => ["pass\u{200F}word"],
             'left-to-right override (U+202D)' => ["pass\u{202D}word"],
 
             // C.9 — Tagging characters

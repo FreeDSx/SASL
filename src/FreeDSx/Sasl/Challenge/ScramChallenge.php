@@ -55,11 +55,11 @@ final readonly class ScramChallenge implements ChallengeInterface
      * Values follow RFC 5802 (SHA-1: 4096) and RFC 7677 (SHA-256: 4096).
      */
     private const MIN_ITERATIONS = [
-        'sha1'     => 4096,
-        'sha224'   => 4096,
-        'sha256'   => 4096,
-        'sha384'   => 4096,
-        'sha512'   => 4096,
+        'sha1' => 4096,
+        'sha224' => 4096,
+        'sha256' => 4096,
+        'sha384' => 4096,
+        'sha512' => 4096,
         'sha3-512' => 4096,
     ];
 
@@ -75,11 +75,11 @@ final readonly class ScramChallenge implements ChallengeInterface
      * for stronger hash variants.
      */
     private const DEFAULT_ITERATIONS = [
-        'sha1'     => 10000,
-        'sha224'   => 15000,
-        'sha256'   => 15000,
-        'sha384'   => 10000,
-        'sha512'   => 10000,
+        'sha1' => 10000,
+        'sha224' => 15000,
+        'sha256' => 15000,
+        'sha384' => 10000,
+        'sha512' => 10000,
         'sha3-512' => 10000,
     ];
 
