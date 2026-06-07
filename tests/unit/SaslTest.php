@@ -47,7 +47,11 @@ final class SaslTest extends TestCase
         self::assertArrayHasKey('CRAM-MD5', $mechs);
         self::assertArrayHasKey('PLAIN', $mechs);
         self::assertArrayHasKey('ANONYMOUS', $mechs);
-        self::assertCount(16, $mechs);
+        self::assertArrayHasKey('EXTERNAL', $mechs);
+        self::assertCount(
+            17,
+            $mechs,
+        );
     }
 
     public function testRemove(): void

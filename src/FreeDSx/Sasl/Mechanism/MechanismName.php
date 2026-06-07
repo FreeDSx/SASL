@@ -21,6 +21,7 @@ namespace FreeDSx\Sasl\Mechanism;
 enum MechanismName: string
 {
     case ANONYMOUS = 'ANONYMOUS';
+    case EXTERNAL = 'EXTERNAL';
     case PLAIN = 'PLAIN';
     case CRAM_MD5 = 'CRAM-MD5';
     case DIGEST_MD5 = 'DIGEST-MD5';

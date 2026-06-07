@@ -5,26 +5,21 @@ declare(strict_types=1);
 use PhpCsFixer\Fixer\ArrayNotation\ArraySyntaxFixer;
 use PhpCsFixer\Fixer\Import\NoUnusedImportsFixer;
 use PhpCsFixer\Fixer\PhpTag\BlankLineAfterOpeningTagFixer;
-use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symplify\CodingStandard\Fixer\Strict\BlankLineAfterStrictTypesFixer;
-use Symplify\EasyCodingStandard\ValueObject\Option;
-use Symplify\EasyCodingStandard\ValueObject\Set\SetList;
+use Symplify\EasyCodingStandard\Config\ECSConfig;
 
-return static function (ContainerConfigurator $containerConfigurator): void {
-    $parameters = $containerConfigurator->parameters();
-    $parameters->set(Option::PATHS, [
+return ECSConfig::configure()
+    ->withPaths([
         __DIR__ . '/src',
         __DIR__ . '/tests',
+    ])
+    ->withPreparedSets(psr12: true)
+    ->withConfiguredRule(
+        ArraySyntaxFixer::class,
+        ['syntax' => 'short'],
+    )
+    ->withRules([
+        BlankLineAfterStrictTypesFixer::class,
+        BlankLineAfterOpeningTagFixer::class,
+        NoUnusedImportsFixer::class,
     ]);
-
-    $services = $containerConfigurator->services();
-    $services->set(ArraySyntaxFixer::class)
-        ->call('configure', [[
-            'syntax' => 'short',
-        ]]);
-    $services->set(BlankLineAfterStrictTypesFixer::class);
-    $services->set(BlankLineAfterOpeningTagFixer::class);
-    $services->set(NoUnusedImportsFixer::class);
-
-    $containerConfigurator->import(SetList::PSR_12);
-};
