@@ -22,6 +22,11 @@ use FreeDSx\Sasl\Exception\SaslException;
  */
 final class SaslContext
 {
+    /**
+     * Context data key for the authorization identity (authzid) a mechanism carried.
+     */
+    public const AUTHZID = 'authzid';
+
     private bool $isAuthenticated = false;
 
     private bool $isComplete = false;
@@ -155,6 +160,16 @@ final class SaslContext
     {
         $value = $this->data[$key] ?? null;
         return is_int($value) ? $value : null;
+    }
+
+    /**
+     * The authorization identity (authzid) the client requested, when the mechanism carries one.
+     */
+    public function getAuthzId(): ?string
+    {
+        $value = $this->data[self::AUTHZID] ?? null;
+
+        return is_string($value) ? $value : null;
     }
 
     public function set(

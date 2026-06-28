@@ -28,11 +28,16 @@ use FreeDSx\Sasl\SaslContext;
 final readonly class ScramEncoder implements EncoderInterface
 {
     /**
-     * Matches the GS2 header at the start of a client-first-message.
+     * Matches the GS2 header at the start of a client-first-message: gs2-cbind-flag "," [authzid] ",".
      *
-     * Formats: 'n,,', 'y,,', 'p=<cbtype>,,'
+     * Formats: 'n,,', 'y,,', 'p=<cbtype>,,', optionally carrying an authzid: 'n,a=<authzid>,'.
      */
-    private const MATCH_GS2_HEADER = '/^(n|y|p=[^,]*),,(.*)$/';
+    private const MATCH_GS2_HEADER = '/^(n|y|p=[^,]*),(a=[^,]*)?,(.*)$/';
+
+    /**
+     * Message key under which the raw GS2 header bytes are stored.
+     */
+    private const GS2_HEADER = 'gs2-header';
 
     /**
      * Encodes a Message into a SCRAM comma-separated attr=value string.
@@ -62,12 +67,7 @@ final readonly class ScramEncoder implements EncoderInterface
         SaslContext $context,
     ): Message {
         $message = new Message();
-
-        # Detect and strip the GS2 header present in client-first-messages.
-        if (preg_match(self::MATCH_GS2_HEADER, $data, $matches) === 1) {
-            $message->set('gs2-header', $matches[1] . ',,');
-            $data = $matches[2];
-        }
+        $data = $this->stripGs2Header($data, $message);
 
         # SCRAM attr values are printable ASCII excluding comma, so splitting on comma is safe.
         $parts = explode(',', $data);
@@ -93,5 +93,38 @@ final readonly class ScramEncoder implements EncoderInterface
         }
 
         return $message;
+    }
+
+    /**
+     * Strips the GS2 header from a client-first-message, recording it (and any authzid) on the message.
+     *
+     * Returns the data with the header removed, or unchanged when no GS2 header is present.
+     */
+    private function stripGs2Header(
+        string $data,
+        Message $message,
+    ): string {
+        if (preg_match(self::MATCH_GS2_HEADER, $data, $matches) !== 1) {
+            return $data;
+        }
+
+        # Preserve the exact gs2-header bytes (including any authzid) for the channel-binding value.
+        $authzidAttr = $matches[2];
+        $message->set(
+            self::GS2_HEADER,
+            $matches[1] . ',' . $authzidAttr . ',',
+        );
+        if ($authzidAttr !== '') {
+            $authzid = substr(
+                $authzidAttr,
+                2,
+            );
+            $message->set(
+                SaslContext::AUTHZID,
+                $authzid,
+            );
+        }
+
+        return $matches[3];
     }
 }

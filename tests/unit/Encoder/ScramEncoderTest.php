@@ -71,6 +71,41 @@ final class ScramEncoderTest extends TestCase
         self::assertSame('clientnonce', $decoded->get('r'));
     }
 
+    public function testDecodeClientFirstMessageWithAnAuthzIdInTheGs2Header(): void
+    {
+        $decoded = $this->encoder->decode(
+            'n,a=admin,n=user,r=clientnonce',
+            $this->context,
+        );
+
+        self::assertSame(
+            'n,a=admin,',
+            $decoded->get('gs2-header'),
+        );
+        self::assertSame(
+            'admin',
+            $decoded->get(SaslContext::AUTHZID),
+        );
+        self::assertSame(
+            'user',
+            $decoded->get('n'),
+        );
+        self::assertSame(
+            'clientnonce',
+            $decoded->get('r'),
+        );
+    }
+
+    public function testDecodeClientFirstMessageWithoutAnAuthzIdHasNone(): void
+    {
+        $decoded = $this->encoder->decode(
+            'n,,n=user,r=clientnonce',
+            $this->context,
+        );
+
+        self::assertNull($decoded->get(SaslContext::AUTHZID));
+    }
+
     public function testDecodeClientFirstMessageWithYGs2Header(): void
     {
         $decoded = $this->encoder->decode('y,,n=user,r=clientnonce', $this->context);

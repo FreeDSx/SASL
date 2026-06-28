@@ -230,6 +230,9 @@ final class DigestMD5Challenge implements ChallengeInterface
 
         $response = DigestMD5Mechanism::computeResponse((string) $password, $this->challenge, $received, true);
         $this->context->setIsAuthenticated(true);
+        if ($received->has(SaslContext::AUTHZID)) {
+            $this->context->set(SaslContext::AUTHZID, $received->getString(SaslContext::AUTHZID));
+        }
         if ($qop === 'auth-int' || $qop === 'auth-conf') {
             $this->context->setHasSecurityLayer(true);
             $this->context->set('a1', hex2bin(DigestMD5Mechanism::computeA1((string) $password, $this->challenge, $received)));

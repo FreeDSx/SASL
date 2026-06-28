@@ -53,6 +53,22 @@ final class PlainChallengeTest extends TestCase
         self::assertNull($context->getResponse());
     }
 
+    public function testTheServerExposesTheAuthzIdOnTheContext(): void
+    {
+        $serverChallenge = new PlainChallenge(true);
+        $validate = static fn (?string $authzid, string $authcid, string $password): bool => true;
+
+        $context = $serverChallenge->challenge(
+            "alice\x00bob\x00bar",
+            (new PlainOptions())->setValidate(Closure::fromCallable($validate)),
+        );
+
+        self::assertSame(
+            'alice',
+            $context->getAuthzId(),
+        );
+    }
+
     public function testTheServerResponseToTheClientWhenNotSuccessful(): void
     {
         $serverChallenge = new PlainChallenge(true);
