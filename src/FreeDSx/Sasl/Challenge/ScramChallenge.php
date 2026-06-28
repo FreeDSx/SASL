@@ -341,6 +341,12 @@ final readonly class ScramChallenge implements ChallengeInterface
         $this->context->set(self::CTX_SALT, $salt);
         $this->context->set(self::CTX_ITERATIONS, $iterations);
         $this->context->set(self::CTX_SERVER_FIRST, $serverFirst);
+        if ($clientFirst->has(SaslContext::AUTHZID)) {
+            $this->context->set(
+                SaslContext::AUTHZID,
+                $clientFirst->getString(SaslContext::AUTHZID),
+            );
+        }
 
         return $serverFirst;
     }

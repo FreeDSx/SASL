@@ -67,13 +67,14 @@ final readonly class ExternalChallenge implements ChallengeInterface
         }
 
         // The credential is the verified peer identity from a lower layer; the payload is only the optional authzId.
-        $rawAuthzId = $this->encoder->decode($received ?? '', $this->context)->get('authzid');
+        $rawAuthzId = $this->encoder->decode($received ?? '', $this->context)->get(SaslContext::AUTHZID);
         $authzId = is_string($rawAuthzId)
             ? $rawAuthzId
             : null;
 
         $this->context->setIsComplete(true);
         $this->context->setIsAuthenticated($validate($authzId));
+        $this->context->set(SaslContext::AUTHZID, $authzId);
 
         return $this->context;
     }
@@ -82,7 +83,7 @@ final readonly class ExternalChallenge implements ChallengeInterface
     {
         $data = [];
         if ($options->getAuthzId() !== null) {
-            $data['authzid'] = $options->getAuthzId();
+            $data[SaslContext::AUTHZID] = $options->getAuthzId();
         }
 
         $this->context->setResponse($this->encoder->encode(
