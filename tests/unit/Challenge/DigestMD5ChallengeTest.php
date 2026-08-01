@@ -16,6 +16,7 @@ namespace Tests\Unit\FreeDSx\Sasl\Challenge;
 use FreeDSx\Sasl\Challenge\DigestMD5Challenge;
 use FreeDSx\Sasl\Encoder\DigestMD5Encoder;
 use FreeDSx\Sasl\Exception\SaslException;
+use FreeDSx\Sasl\Message;
 use FreeDSx\Sasl\Options\DigestMD5Options;
 use FreeDSx\Sasl\SaslContext;
 use PHPUnit\Framework\TestCase;
@@ -117,6 +118,33 @@ final class DigestMD5ChallengeTest extends TestCase
         self::assertSame(['auth', 'auth-int', 'auth-conf'], $challenge->get('qop'));
         self::assertNotEmpty($challenge->get('cipher'), 'The cipher value is empty.');
         self::assertNotEmpty($challenge->get('nonce'), 'The nonce must be generated.');
+    }
+
+    public function testServerModeWithNoIssuedChallengeDoesNotAuthenticate(): void
+    {
+        $serverChallenge = new DigestMD5Challenge(true);
+
+        // A client response sent before the server issued its nonce.
+        $clientResponse = $this->encoder->encode(
+            new Message([
+                'username' => 'foo',
+                'realm' => '',
+                'nonce' => 'x',
+                'cnonce' => str_repeat('a', 14),
+                'nc' => '00000001',
+                'qop' => 'auth',
+                'digest-uri' => 'ldap/host',
+                'response' => str_repeat('a', 32),
+            ]),
+            new SaslContext(),
+        );
+
+        $context = $serverChallenge->challenge(
+            $clientResponse,
+            (new DigestMD5Options())->setPassword('bar'),
+        );
+
+        self::assertFalse($context->isAuthenticated());
     }
 
     public function testGenerateServerResponseToClientResponse(): void

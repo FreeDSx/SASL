@@ -67,6 +67,21 @@ final class CramMD5ChallengeTest extends TestCase
         self::assertTrue($context->isComplete());
     }
 
+    public function testChallengeFromServerWithNoIssuedChallengeDoesNotAuthenticate(): void
+    {
+        $serverChallenge = new CramMD5Challenge(true);
+        $validate = static fn (string $username, string $challenge): string => hash_hmac('md5', $challenge, 'bar');
+
+        // A digest computed offline over an empty challenge, sent before the server issued one.
+        $context = $serverChallenge->challenge(
+            'foo ' . hash_hmac('md5', '', 'bar'),
+            (new CramMD5Options())->setPasswordCallback(Closure::fromCallable($validate)),
+        );
+
+        self::assertFalse($context->isAuthenticated());
+        self::assertTrue($context->isComplete());
+    }
+
     public function testPasswordCallableReceivesEncodedChallengeMatchingWhatClientUses(): void
     {
         $serverChallenge = new CramMD5Challenge(true);
