@@ -108,6 +108,12 @@ final readonly class CramMD5Challenge implements ChallengeInterface
         Message $received,
         CramMD5Options $options,
     ): void {
+        # The client sent a response without us sending a challenge...
+        if (!$this->context->has('challenge')) {
+            $this->context->setIsComplete(true);
+
+            return;
+        }
         if (!$received->has('username')) {
             throw new SaslException('The client response must have a username.');
         }
