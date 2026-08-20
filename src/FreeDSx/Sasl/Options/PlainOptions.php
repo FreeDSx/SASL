@@ -29,6 +29,8 @@ final class PlainOptions implements ChallengeOptionsInterface
 
     private ?string $password = null;
 
+    private ?string $authzId = null;
+
     /**
      * @var (Closure(?string $authzId, string $authcId, string $password): bool)|null
      */
@@ -54,6 +56,21 @@ final class PlainOptions implements ChallengeOptionsInterface
     public function setPassword(string $password): self
     {
         $this->password = $password;
+
+        return $this;
+    }
+
+    public function getAuthzId(): ?string
+    {
+        return $this->authzId;
+    }
+
+    /**
+     * The identity to act as, for a proxy request; leave it unset to authorize as the authenticating identity.
+     */
+    public function setAuthzId(string $authzId): self
+    {
+        $this->authzId = $authzId;
 
         return $this;
     }

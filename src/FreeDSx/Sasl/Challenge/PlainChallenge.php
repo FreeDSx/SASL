@@ -91,8 +91,9 @@ final readonly class PlainChallenge implements ChallengeInterface
         if ($options->getPassword() === null) {
             throw new SaslException('You must supply a password for the PLAIN mechanism.');
         }
+        // RFC 4616 2 omits the authzid unless the client is asking to act as a different identity.
         $message = new Message([
-            SaslContext::AUTHZID => $options->getUsername(),
+            SaslContext::AUTHZID => $options->getAuthzId(),
             'authcid' => $options->getUsername(),
             'password' => $options->getPassword(),
         ]);

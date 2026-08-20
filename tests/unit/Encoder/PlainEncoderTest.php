@@ -41,6 +41,19 @@ final class PlainEncoderTest extends TestCase
         self::assertSame("foo\x00foo\x00bar", $result);
     }
 
+    /**
+     * RFC 4616 2 has "message = [authzid] UTF8NUL authcid UTF8NUL passwd", so the authzid may be omitted.
+     */
+    public function testItEncodesAnOmittedAuthzid(): void
+    {
+        $result = $this->encoder->encode(
+            new Message(['authcid' => 'foo', 'password' => 'bar']),
+            $this->context,
+        );
+
+        self::assertSame("\x00foo\x00bar", $result);
+    }
+
     public function testItDecodes(): void
     {
         $result = $this->encoder->decode("foo1\x00foo2\x00bar", $this->context);
@@ -49,6 +62,29 @@ final class PlainEncoderTest extends TestCase
             ['authzid' => 'foo1', 'authcid' => 'foo2', 'password' => 'bar'],
             $result->toArray(),
         );
+    }
+
+    /**
+     * An omitted authzid decodes to null, which the server takes as "derive it from the authcid".
+     */
+    public function testItDecodesAnOmittedAuthzid(): void
+    {
+        $result = $this->encoder->decode("\x00foo2\x00bar", $this->context);
+
+        self::assertSame(
+            ['authzid' => null, 'authcid' => 'foo2', 'password' => 'bar'],
+            $result->toArray(),
+        );
+    }
+
+    /**
+     * The authcid and passwd productions are both 1*SAFE, so neither may be empty.
+     */
+    public function testItRejectsAnEmptyAuthcidOrPassword(): void
+    {
+        $this->expectException(SaslEncodingException::class);
+
+        $this->encoder->decode("foo\x00\x00bar", $this->context);
     }
 
     public function testItValidatesTheDecodedMessage(): void
