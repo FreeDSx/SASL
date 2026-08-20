@@ -27,6 +27,9 @@ final class PlainChallengeTest extends TestCase
         $this->challenge = new PlainChallenge();
     }
 
+    /**
+     * RFC 4616 2 omits the authzid when the server is to derive the identity from the credentials.
+     */
     public function testTheClientChallenge(): void
     {
         $context = $this->challenge->challenge(
@@ -34,8 +37,21 @@ final class PlainChallengeTest extends TestCase
             (new PlainOptions())->setUsername('foo')->setPassword('bar'),
         );
 
-        self::assertSame("foo\x00foo\x00bar", $context->getResponse());
+        self::assertSame("\x00foo\x00bar", $context->getResponse());
         self::assertTrue($context->isComplete());
+    }
+
+    public function testTheClientChallengeCarriesAnExplicitAuthzId(): void
+    {
+        $context = $this->challenge->challenge(
+            null,
+            (new PlainOptions())
+                ->setUsername('foo')
+                ->setPassword('bar')
+                ->setAuthzId('other'),
+        );
+
+        self::assertSame("other\x00foo\x00bar", $context->getResponse());
     }
 
     public function testTheServerResponseToTheClientWhenSuccessful(): void

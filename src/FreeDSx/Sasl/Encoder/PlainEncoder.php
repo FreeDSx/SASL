@@ -24,13 +24,13 @@ use FreeDSx\Sasl\SaslContext;
  */
 final readonly class PlainEncoder implements EncoderInterface
 {
+    /**
+     * RFC 4616 2 makes the authzid optional, so an absent one is encoded as the leading NUL alone.
+     */
     public function encode(
         Message $message,
         SaslContext $context,
     ): string {
-        if (!$message->has('authzid')) {
-            throw new SaslEncodingException('The PLAIN message must contain a authzid.');
-        }
         if (!$message->has('authcid')) {
             throw new SaslEncodingException('The PLAIN message must contain a authcid.');
         }
@@ -44,16 +44,19 @@ final readonly class PlainEncoder implements EncoderInterface
         return $authzid . "\x00" . $authcid . "\x00" . $password;
     }
 
+    /**
+     * The authzid is null when the client omitted it, which RFC 4616 2 has the server derive from the authcid.
+     */
     public function decode(
         string $data,
         SaslContext $context,
     ): Message {
-        if (preg_match('/^([^\x0]+)\x00([^\x0]+)\x00([^\x0]+)$/', $data, $matches) !== 1) {
+        if (preg_match('/^([^\x0]*)\x00([^\x0]+)\x00([^\x0]+)$/', $data, $matches) !== 1) {
             throw new SaslEncodingException('The PLAIN message data is malformed.');
         }
 
         return new Message([
-            'authzid' => $matches[1],
+            'authzid' => $matches[1] === '' ? null : $matches[1],
             'authcid' => $matches[2],
             'password' => $matches[3],
         ]);
